@@ -59,14 +59,28 @@ class TcpProtocol(BaseProtocol):
             packed_packet.header.flags,
             packed_packet.header.payload_len,
         )
-        payload = self.payload_decoder.decode(
+        decoded = self.payload_decoder.decode(
             packed_packet.payload_bytes, flags=packed_packet.header.flags
         )
+
+        # Не каждый фрейм несёт map: например, ответ-ошибка приходит голым
+        # значением (числовым кодом). payload оставляем строго dict|None — его
+        # так читают консьюмеры, — а исходное значение кладём в raw, чтобы не
+        # терять данные и не ронять весь приём кадров на ValidationError.
+        payload = decoded if isinstance(decoded, dict) else None
+        if payload is None and decoded is not None:
+            logger.debug(
+                "non-dict tcp payload opcode=%s cmd=%s type=%s value=%r",
+                packed_packet.header.opcode,
+                packed_packet.header.cmd,
+                type(decoded).__name__,
+                decoded,
+            )
 
         return InboundFrame(
             opcode=packed_packet.header.opcode,
             cmd=packed_packet.header.cmd,
             seq=packed_packet.header.seq,
             payload=payload,
-            raw=payload,
+            raw=decoded,
         )

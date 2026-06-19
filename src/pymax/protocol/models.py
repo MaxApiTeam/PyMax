@@ -16,7 +16,9 @@ class InboundFrame(BaseModel):
     cmd: int = 0
     seq: int | None = None
     payload: dict[Any, Any] | None = None
-    raw: dict[Any, Any] | None = None
+    # Не каждый фрейм несёт map: ответ-ошибка может прийти голым значением
+    # (например, числовым кодом), поэтому raw хранит исходный payload как есть.
+    raw: Any = None
 
 
 class TcpPacketHeader(BaseModel):

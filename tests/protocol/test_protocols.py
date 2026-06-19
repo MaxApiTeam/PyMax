@@ -52,6 +52,29 @@ def test_tcp_protocol_roundtrip() -> None:
     )
 
 
+def test_tcp_protocol_keeps_non_dict_payload_in_raw() -> None:
+    protocol = TcpProtocol()
+    framer = TcpPacketFramer()
+    # Сервер может прислать ответ-ошибку голым значением (не map). Раньше это
+    # роняло создание InboundFrame с ValidationError и убивало цикл приёма.
+    raw = framer.pack(
+        ver=protocol.version,
+        cmd=Command.ERROR,
+        seq=5,
+        opcode=Opcode.LOGIN,
+        flags=0,
+        payload_bytes=msgpack.packb(-12, use_bin_type=True),
+    )
+
+    decoded = protocol.decode(raw)
+
+    assert decoded.opcode == Opcode.LOGIN
+    assert decoded.cmd == Command.ERROR
+    assert decoded.seq == 5
+    assert decoded.payload is None
+    assert decoded.raw == -12
+
+
 def test_tcp_protocol_supports_two_byte_sequence_ids() -> None:
     protocol = TcpProtocol()
     outbound = OutboundFrame(
