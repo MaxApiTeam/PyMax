@@ -7,6 +7,7 @@ from pymax.api.uploads.payloads import AttachPhotoPayload
 from pymax.exceptions import UploadError
 from pymax.files import File, Photo, Video
 from pymax.protocol import Opcode
+from pymax.types.domain.attachments import VideoRequest
 from tests.conftest import FakeApp, frame, message_payload
 
 
@@ -372,7 +373,15 @@ async def test_reaction_methods_parse_optional_reaction_info() -> None:
 async def test_get_video_and_file_by_id_parse_request_models() -> None:
     app = FakeApp(
         [
-            frame({"cache": True, "dynamicUrl": "https://video.test"}),
+            frame(
+                {
+                    "cache": True,
+                    "FAILOVER_HOSTS": ["maxvd759.okcdn.ru"],
+                    "MP4_480": "https://video.test/480",
+                    "EXTERNAL": "https://m.ok.ru/video/1",
+                    "MP4_720": "https://video.test/720",
+                }
+            ),
             frame({"unsafe": False, "url": "https://file.test"}),
         ]
     )
@@ -381,7 +390,8 @@ async def test_get_video_and_file_by_id_parse_request_models() -> None:
     file = await app.api.messages.get_file_by_id(100, "10", 30)
 
     assert video is not None
-    assert video.url == "https://video.test"
+    assert video.url == "https://video.test/720"
+    assert video.external == "https://m.ok.ru/video/1"
     assert file is not None
     assert file.url == "https://file.test"
     assert [call.opcode for call in app.calls] == [
@@ -398,6 +408,19 @@ async def test_get_video_and_file_by_id_parse_request_models() -> None:
         "messageId": "10",
         "fileId": 30,
     }
+
+
+def test_video_request_supports_legacy_and_external_only_payloads() -> None:
+    legacy = VideoRequest.model_validate(
+        {"cache": True, "dynamicUrl": "https://video.test/legacy"}
+    )
+    external = VideoRequest.model_validate(
+        {"cache": True, "EXTERNAL": "https://m.ok.ru/video/1"}
+    )
+
+    assert legacy.url == "https://video.test/legacy"
+    assert external.url is None
+    assert external.external == "https://m.ok.ru/video/1"
 
 
 def test_next_cid_is_monotonic_when_clock_does_not_move(
