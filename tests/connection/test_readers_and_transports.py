@@ -150,11 +150,13 @@ class FakeWebSocket:
         self.close_code = None
         self.sent: list[bytes | str] = []
         self.closed = False
+        self.recv_decode: bool | None = None
 
     async def send(self, data: bytes | str) -> None:
         self.sent.append(data)
 
     async def recv(self, decode=True):
+        self.recv_decode = decode
         return "incoming"
 
     async def close(self) -> None:
@@ -184,4 +186,5 @@ async def test_websocket_transport_connect_send_recv_and_close(
 
     assert ws.sent == ["hello"]
     assert incoming == "incoming"
+    assert ws.recv_decode is False
     assert transport.connected is False

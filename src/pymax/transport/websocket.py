@@ -41,7 +41,7 @@ class WebSocketTransport(Transport):
         if self.ws is None or not self.connected:
             raise ConnectionError("Not connected to the server")
 
-        return await self.ws.recv(decode=True)
+        return await self.ws.recv(decode=False)
 
     @property
     def connected(self) -> bool:

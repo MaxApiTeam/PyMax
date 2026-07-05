@@ -176,7 +176,7 @@ class ExtraConfig(BaseModel):
 
     host: str = "api.oneme.ru"
     port: int = 443
-    url: str = "wss://ws-api.oneme.ru/websocket"
+    url: str = "wss://api.oneme.ru/websocket"
     use_ssl: bool = True
     proxy: str | None = None
     reconnect: bool = True

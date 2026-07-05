@@ -6,7 +6,7 @@ from pymax.auth.qr import QrAuthFlow
 from pymax.connection import ConnectionManager
 from pymax.connection.readers import WSReader
 from pymax.logging import configure_logging, get_logger
-from pymax.protocol.ws import WsProtocol
+from pymax.protocol.tcp import TcpProtocol
 from pymax.transport.websocket import WebSocketTransport
 
 from .base import BaseClient
@@ -80,5 +80,5 @@ class WebClient(BaseClient["WebClient"]):
         return ConnectionManager(
             reader=reader,
             transport=transport,
-            protocol=WsProtocol(),
+            protocol=TcpProtocol(),
         )

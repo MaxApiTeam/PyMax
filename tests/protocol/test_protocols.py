@@ -129,6 +129,32 @@ def test_msgpack_codec_uses_first_dict_when_stream_has_extra_data() -> None:
     assert codec.decode(encoded) == {"ok": True}
 
 
+def test_msgpack_codec_decodes_wrapped_value_extension() -> None:
+    codec = MsgpackPayloadCodec()
+    expected = {
+        "expiresAt": 1783264954296,
+        "pollingInterval": 5000,
+        "ttl": 119992,
+    }
+    encoded = msgpack.packb(
+        {key: msgpack.ExtType(1, msgpack.packb(value)) for key, value in expected.items()},
+        use_bin_type=True,
+    )
+
+    assert codec.decode(encoded) == expected
+
+
+def test_tcp_payload_decoder_preserves_unknown_extensions() -> None:
+    codec = MsgpackPayloadCodec()
+    extension = msgpack.ExtType(42, b"unknown")
+    decoder = TcpPayloadDecoder(serializer=codec)
+
+    decoded = decoder.decode(msgpack.packb({"extension": extension}, use_bin_type=True))
+
+    assert decoded["extension"] == extension
+    assert isinstance(decoded["extension"], msgpack.ExtType)
+
+
 def test_tcp_payload_decoder_decompresses_lz4_for_compression_factor_four() -> None:
     # This is a raw LZ4 block produced by the official-compatible compressor.
     # Its first byte is 0xF4, which MsgPack reads as -12 when decompression is
