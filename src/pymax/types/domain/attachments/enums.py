@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, IntFlag
 
 
 class AttachmentType(str, Enum):
@@ -14,6 +14,7 @@ class AttachmentType(str, Enum):
     CALL = "CALL"
     SHARE = "SHARE"
     INLINE_KEYBOARD = "INLINE_KEYBOARD"
+    POLL = "POLL"
     UNKNOWN = "UNKNOWN"
 
 
@@ -26,3 +27,18 @@ class TranscriptionStatus(str, Enum):
     PROCESSING = "PROCESSING"
     SUCCESS = "SUCCESS"
     UNKNOWN = "UNKNOWN"
+
+
+class PollFlags(IntFlag):
+    """Настройки опроса, представленные битовой маской.
+
+    Несколько настроек объединяются оператором ``|``. Числовые значения,
+    полученные от Max, автоматически преобразуются в ``PollFlags``.
+    """
+
+    FLAG_SETTINGS_ANONYMOUS = 1
+    FLAG_SETTINGS_MULTISELECT = 2
+    FLAG_SETTINGS_REVOTE = 4
+    FLAG_SETTINGS_CLOSED = 8
+    FLAG_SETTINGS_QUIZ = 16
+    FLAG_SETTINGS_CAN_FORWARD = 32

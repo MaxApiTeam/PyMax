@@ -17,7 +17,7 @@ class MessageMixin(IClientProtocol):
     async def send_message(
         self,
         chat_id: int,
-        text: str,
+        text: str | None = None,
         reply_to: int | None = None,
         attachments: SendAttachments = None,
         *,
@@ -27,13 +27,16 @@ class MessageMixin(IClientProtocol):
 
         Args:
             chat_id: ID чата.
-            text: Текст сообщения.
+            text: Текст сообщения. Можно не передавать при наличии вложений.
             reply_to: ID сообщения для ответа.
-            attachments: Файлы, фотографии или видео для отправки.
+            attachments: Файлы, фотографии, видео или опросы для отправки.
             notify: Отправить ли получателям push-уведомление.
 
         Returns:
             Отправленное сообщение или ``None``, если сервер не вернул его.
+
+        Raises:
+            ValueError: Если не переданы ни текст, ни вложения.
         """
         return await self._app.api.messages.send_message(
             chat_id,
@@ -121,7 +124,7 @@ class MessageMixin(IClientProtocol):
             chat_id: ID чата.
             message_id: ID сообщения.
             text: Новый текст сообщения с поддержкой markdown.
-            attachments: Новые файлы, фотографии или видео для сообщения.
+            attachments: Новые файлы, фотографии, видео или опросы для сообщения.
 
         Returns:
             Отредактированное сообщение.

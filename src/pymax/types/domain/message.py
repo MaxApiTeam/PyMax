@@ -14,6 +14,8 @@ from pymax.types.domain import (
     FileAttachment,
     InlineKeyboardAttachment,
     PhotoAttachment,
+    Poll,
+    PollAttachment,
     ShareAttachment,
     StickerAttachment,
     UnknownAttachment,
@@ -38,11 +40,12 @@ KnownAttachment: TypeAlias = Annotated[
     | ControlAttachment
     | InlineKeyboardAttachment
     | ShareAttachment
-    | CallAttachment,
+    | CallAttachment
+    | PollAttachment,
     Field(discriminator="type"),
 ]
 Attachment: TypeAlias = KnownAttachment | UnknownAttachment
-SendAttachment: TypeAlias = Photo | File | Video
+SendAttachment: TypeAlias = Photo | File | Video | Poll
 SendAttachments: TypeAlias = Sequence[SendAttachment] | None
 
 

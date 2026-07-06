@@ -134,8 +134,10 @@ class SelfMixin(IClientProtocol):
         """
         return await self._app.api.account.logout()
 
-    def set_presence(self, online: bool) -> None:
-        """Устанавливает статус присутствия текущего аккаунта. (Статус применяется не мгновенно, а при следущем login/ping)
+    def set_presence(self, *, online: bool) -> None:
+        """Устанавливает статус присутствия текущего аккаунта.
+
+        Статус применяется не мгновенно, а при следующем запросе login/ping.
 
         Args:
             online: ``True``, если нужно установить статус "в сети", иначе

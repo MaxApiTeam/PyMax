@@ -25,6 +25,7 @@ from pymax.protocol import Opcode
 from pymax.types.domain import (
     FileRequest,
     Message,
+    Poll,
     ReactionInfo,
     ReadState,
     VideoRequest,
@@ -55,7 +56,7 @@ from .payloads import (
 if TYPE_CHECKING:
     from pymax.app import App
 
-SendAttachment: TypeAlias = Photo | File | Video
+SendAttachment: TypeAlias = Photo | File | Video | Poll
 SendAttachments: TypeAlias = Sequence[SendAttachment] | None
 
 logger = get_logger(__name__)
@@ -76,8 +77,8 @@ class MessageService:
 
     async def _upload_attachments(
         self, attachments: SendAttachments
-    ) -> list[AttachPhotoPayload | VideoAttachPayload | AttachFilePayload]:
-        result: list[AttachPhotoPayload | VideoAttachPayload | AttachFilePayload] = []
+    ) -> list[AttachPhotoPayload | VideoAttachPayload | AttachFilePayload | Poll]:
+        result: list[AttachPhotoPayload | VideoAttachPayload | AttachFilePayload | Poll] = []
         if not attachments:
             return result
 
@@ -106,20 +107,30 @@ class MessageService:
 
                 result.append(upload_result)
 
+            elif isinstance(attachment, Poll):
+                result.append(attachment)
+
         return result
 
     async def send_message(
         self,
         chat_id: int,
-        text: str,
+        text: str | None = None,
         reply_to: int | None = None,
         attachments: SendAttachments = None,
         *,
         notify: bool = True,
     ) -> Message | None:
-        logger.info("sending message chat_id=%s text_len=%s", chat_id, len(text))
+        logger.info("sending message chat_id=%s text_len=%s", chat_id, len(text) if text else 0)
 
-        clean_text, elements = Formatter.format_markdown(text)
+        if not text and not attachments:
+            logger.error("send_message failed: no text or attachments provided")
+            raise ValueError("Either text or attachments must be provided")
+
+        if text:
+            clean_text, elements = Formatter.format_markdown(text)
+        else:
+            clean_text, elements = None, []
 
         frame = SendMessagePayload(
             chat_id=chat_id,
@@ -208,10 +219,18 @@ class MessageService:
         self,
         chat_id: int,
         message_id: int,
-        text: str,
+        text: str | None = None,
         attachments: SendAttachments = None,
     ) -> Message:
-        clean_text, elements = Formatter.format_markdown(text)
+        if not text and not attachments:
+            logger.error("edit_message failed: no text or attachments provided")
+            raise ValueError("Either text or attachments must be provided")
+
+        if text:
+            clean_text, elements = Formatter.format_markdown(text)
+        else:
+            clean_text, elements = None, []
+
         frame = EditMessagePayload(
             chat_id=chat_id,
             message_id=message_id,

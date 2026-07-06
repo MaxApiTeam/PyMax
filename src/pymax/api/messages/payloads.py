@@ -8,6 +8,7 @@ from pymax.api.uploads.payloads import (
     AttachPhotoPayload,
     VideoAttachPayload,
 )
+from pymax.types.domain import Poll
 
 from .enums import ItemType, ReadAction
 
@@ -20,9 +21,9 @@ class GetMessagesPayload(CamelModel):
 class EditMessagePayload(CamelModel):
     chat_id: int
     message_id: int
-    text: str
+    text: str | None = None
     elements: list[Any]
-    attachments: list[AttachPhotoPayload | VideoAttachPayload | AttachFilePayload] = Field(
+    attachments: list[AttachPhotoPayload | VideoAttachPayload | AttachFilePayload | Poll] = Field(
         default_factory=list
     )
 
@@ -33,10 +34,10 @@ class ReplyLink(CamelModel):
 
 
 class SendMessagePayloadMessage(CamelModel):
-    text: str
+    text: str | None = None
     cid: int
     elements: list[Any]
-    attaches: list[AttachPhotoPayload | VideoAttachPayload | AttachFilePayload]
+    attaches: list[AttachPhotoPayload | VideoAttachPayload | AttachFilePayload | Poll]
     link: ReplyLink | None = None
 
 
