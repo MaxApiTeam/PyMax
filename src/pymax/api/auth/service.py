@@ -159,6 +159,7 @@ class AuthService:
             token=session.token,
             sync=sync,
             chat_cache_fingerprint=ccf,
+            interactive=self.app.config.interactive,
         )
         response = await self.app.invoke(Opcode.LOGIN, frame.to_payload())
 
@@ -183,6 +184,7 @@ class AuthService:
         frame = WebSyncPayload.from_sync_state(
             token=session.token,
             sync=sync,
+            interactive=self.app.config.interactive,
         )
         response = await self.app.invoke(Opcode.LOGIN, frame.to_payload())
 

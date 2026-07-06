@@ -150,3 +150,7 @@ class SelfService:
         logger.info("logging out")
         await self.app.invoke(Opcode.LOGOUT, {})
         return True
+
+    def set_presence(self, online: bool) -> None:
+        logger.info("setting presence to %s", "online" if online else "offline")
+        self.app.config.interactive = online

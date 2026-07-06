@@ -43,12 +43,14 @@ class WebSyncPayload(CamelModel):
         cls,
         token: str,
         sync: SyncState,
+        interactive: bool = True,
     ) -> "WebSyncPayload":
         return cls(
             token=token,
             chats_sync=sync.chats_sync,
             contacts_sync=sync.contacts_sync,
             drafts_sync=sync.drafts_sync,
+            interactive=interactive,
         )
 
 
@@ -72,6 +74,7 @@ class SyncPayload(CamelModel):
         token: str,
         sync: SyncState,
         chat_cache_fingerprint: bytes | None = None,
+        interactive: bool = True,
     ) -> "SyncPayload":
         return cls(
             user_agent=user_agent,
@@ -82,6 +85,7 @@ class SyncPayload(CamelModel):
             drafts_sync=sync.drafts_sync,
             presence_sync=sync.presence_sync,
             config_hash=sync.config_hash,
+            interactive=interactive,
         )
 
 

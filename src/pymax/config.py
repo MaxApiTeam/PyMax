@@ -140,6 +140,8 @@ class ClientConfig(BaseModel):
     log_level: str = "INFO"
     telemetry: bool = False
 
+    interactive: bool = True
+
     store: StoreProtocol | None = None
 
     sync: SyncOverrides = Field(default_factory=SyncOverrides)

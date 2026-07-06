@@ -252,7 +252,7 @@ class App(Generic[ClientT]):
             while True:
                 await self.invoke(
                     opcode=Opcode.PING,
-                    payload={"interactive": True},
+                    payload={"interactive": self.config.interactive},
                     timeout=self.config.request_timeout,
                 )
                 await asyncio.sleep(30)
