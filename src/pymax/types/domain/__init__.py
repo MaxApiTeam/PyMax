@@ -3,6 +3,7 @@ from .bots import InitData
 from .chat import Chat
 from .error import MaxApiError
 from .folder import Folder, FolderList, FolderUpdate
+from .handshake import HandshakeResponse
 from .login import LoginResponse
 from .member import Member
 from .message import Message, ReactionCounter, ReactionInfo, ReadState

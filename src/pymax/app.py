@@ -8,6 +8,7 @@ from pymax.connection import ConnectionManager
 from pymax.dispatch import Dispatcher
 from pymax.dispatch.router import EventType, Router
 from pymax.exceptions import ApiError
+from pymax.fingerprint import FingerprintGenerator
 from pymax.logging import get_logger
 from pymax.protocol import Command, InboundFrame, OutboundFrame
 from pymax.protocol.enums import Opcode
@@ -15,7 +16,7 @@ from pymax.session import SessionStore
 from pymax.session.models import SessionInfo
 from pymax.telemetry import TelemetryService
 from pymax.types import MaxApiError, Message
-from pymax.types.domain import Chat, Profile, User
+from pymax.types.domain import Chat, HandshakeResponse, Profile, User
 
 if TYPE_CHECKING:
     from pymax.base import BaseClient
@@ -38,6 +39,7 @@ class App(Generic[ClientT]):
         self.config = config
         self.store = self.config.store or SessionStore(config.work_dir, config.session_name)
         self.auth_flow = auth_flow
+        self.fingerprint_generator = FingerprintGenerator()
 
         self.me: Profile | None = None
         self.chats: list[Chat] | None = None
@@ -46,6 +48,7 @@ class App(Generic[ClientT]):
         self.messages: dict[int, list[Message]] = {}
 
         self.session: SessionInfo | None = None
+        self.handshake_response: HandshakeResponse | None = None
 
         self.started = False
         self._ping_task: asyncio.Task[None] | None = None
@@ -81,11 +84,13 @@ class App(Generic[ClientT]):
                 session_data.device_id if session_data else self.config.device.device_id
             )
             logger.debug("running handshake")
-            await self.handshake(handshake_device_id)
+            handshake_response = await self.handshake(handshake_device_id)
         except (ConnectionError, EOFError, OSError, TimeoutError) as e:
             logger.exception("failed to connect or handshake")
             await self.connection.close()
             raise ConnectionError(f"Failed to connect and handshake: {e}") from e
+
+        self.handshake_response = handshake_response
 
         self._ping_task = asyncio.create_task(self._ping_loop())
 
@@ -168,13 +173,14 @@ class App(Generic[ClientT]):
         if self._telemetry:
             self._telemetry.start()
 
-    async def handshake(self, device_id: str) -> None:
-        await self.api.session.handshake(
+    async def handshake(self, device_id: str) -> HandshakeResponse:
+        response = await self.api.session.handshake(
             self.config.device.mt_instance_id,
             self.config.device.user_agent,
             device_id,
         )
         logger.debug("handshake completed device_id=%s", device_id)
+        return response
 
     async def close(self) -> None:
         if self._telemetry:

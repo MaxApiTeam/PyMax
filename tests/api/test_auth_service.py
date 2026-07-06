@@ -55,6 +55,11 @@ async def test_request_and_send_code_parse_auth_responses() -> None:
         Opcode.AUTH,
     ]
     assert app.calls[0].payload["phone"] == "+79990000000"
+    assert app.calls[0].payload["mode"] == app.fingerprint_generator.generate_fingerprint(
+        version=app.config.device.user_agent.app_version,
+        device_id=app.config.device.device_id,
+        calls_seed=123,
+    )
     assert app.calls[1].payload["verifyCode"] == "111111"
 
 
@@ -93,6 +98,13 @@ async def test_mobile_login_sends_sync_payload_and_persists_updated_session() ->
     assert app.calls[0].opcode == Opcode.LOGIN
     assert app.calls[0].payload["token"] == "local-token"
     assert app.calls[0].payload["userAgent"]["deviceType"] == DeviceType.ANDROID
+    assert app.calls[0].payload[
+        "chatCacheFingerprint"
+    ] == app.fingerprint_generator.generate_fingerprint(
+        version=app.config.device.user_agent.app_version,
+        device_id=app.config.device.device_id,
+        calls_seed=123,
+    )
     assert app.session is not None
     assert app.session.mt_instance_id == "mt-test"
     assert app.session.sync.chats_sync == 777

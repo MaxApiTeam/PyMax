@@ -21,8 +21,10 @@ from pymax.api.uploads.payloads import (
 )
 from pymax.api.users.service import UserService
 from pymax.config import ClientConfig, DeviceConfig
+from pymax.fingerprint.fingerprint import FingerprintGenerator
 from pymax.protocol import Command, InboundFrame
 from pymax.session.models import SessionInfo
+from pymax.types.domain import HandshakeResponse
 from pymax.types.domain.sync import SyncOverrides
 
 
@@ -152,7 +154,9 @@ class FakeApp:
         self.contacts: list[Any] = []
         self.messages: dict[int, list[Any]] = {}
         self.session: SessionInfo | None = None
+        self.handshake_response: HandshakeResponse | None = HandshakeResponse(calls_seed=123)
         self.started = True
+        self.fingerprint_generator = FingerprintGenerator()
 
         self.api = SimpleNamespace()
         self.api.uploads = FakeUploads()

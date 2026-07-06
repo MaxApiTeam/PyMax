@@ -424,15 +424,15 @@ async def test_self_service_profile_photo_folders_and_logout() -> None:
 
 @pytest.mark.asyncio
 async def test_session_handshake_switches_between_mobile_and_web_payloads() -> None:
-    mobile_app = FakeApp([frame({})])
-    await mobile_app.api.session.handshake(
+    mobile_app = FakeApp([frame({"callsSeed": 101})])
+    mobile_response = await mobile_app.api.session.handshake(
         "mt",
         mobile_app.config.device.user_agent,
         "device",
     )
 
-    web_app = FakeApp([frame({})], device_type=DeviceType.WEB)
-    await web_app.api.session.handshake(
+    web_app = FakeApp([frame({"callsSeed": 202})], device_type=DeviceType.WEB)
+    web_response = await web_app.api.session.handshake(
         "ignored",
         web_app.config.device.user_agent,
         "web-device",
@@ -443,6 +443,9 @@ async def test_session_handshake_switches_between_mobile_and_web_payloads() -> N
     assert web_app.calls[0].payload["deviceId"] == "web-device"
     assert web_app.calls[0].payload["userAgent"]["deviceType"] == DeviceType.WEB
     assert "mt_instanceid" not in web_app.calls[0].payload
+    assert mobile_response is not None
+    assert mobile_response.calls_seed == 101
+    assert web_response.calls_seed == 202
 
 
 @pytest.mark.asyncio

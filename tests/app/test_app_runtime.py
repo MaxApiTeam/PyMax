@@ -123,7 +123,7 @@ async def test_app_start_with_config_token_handshakes_logs_in_and_saves_session(
     config = make_config().model_copy(update={"token": "config-token", "store": store})
     connection = RuntimeConnection(
         [
-            frame({}),
+            frame({"callsSeed": 123}),
             frame(
                 {
                     "profile": profile_payload(77),
@@ -165,7 +165,7 @@ async def test_app_start_emits_login_errors_to_root_router(
     config = make_config().model_copy(update={"token": "config-token", "store": store})
     connection = RuntimeConnection(
         [
-            frame({}),
+            frame({"callsSeed": 123}),
             InboundFrame(
                 opcode=Opcode.LOGIN,
                 cmd=Command.ERROR,
@@ -218,7 +218,7 @@ async def test_client_start_does_not_emit_on_start_after_handled_login_error(
     config = make_config().model_copy(update={"token": "config-token", "store": store})
     connection = RuntimeConnection(
         [
-            frame({}),
+            frame({"callsSeed": 123}),
             InboundFrame(
                 opcode=Opcode.LOGIN,
                 cmd=Command.ERROR,
@@ -273,7 +273,7 @@ async def test_client_start_emits_disconnect_before_reraising_without_reconnect(
     config = make_config().model_copy(update={"token": "config-token", "store": store})
     connection = RuntimeConnection(
         [
-            frame({}),
+            frame({"callsSeed": 123}),
             frame(
                 {
                     "profile": profile_payload(77),
@@ -418,7 +418,7 @@ async def test_app_marks_stopped_and_cancels_ping_on_connection_loss(
     config = make_config().model_copy(update={"token": "config-token", "store": store})
     connection = RuntimeConnection(
         [
-            frame({}),
+            frame({"callsSeed": 123}),
             frame(
                 {
                     "profile": profile_payload(77),

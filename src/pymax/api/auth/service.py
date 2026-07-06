@@ -58,7 +58,23 @@ class AuthService:
 
     async def request_code(self, phone: str) -> StartAuthResponse:
         logger.info("requesting sms code phone_set=%s", bool(phone))
-        frame = RequestCodePayload(phone=phone)
+
+        if not self.app.handshake_response:
+            logger.error("request_code requested without handshake response")
+            raise RuntimeError("No handshake response available for request_code")
+
+        device_id = (
+            self.app.session.device_id if self.app.session else self.app.config.device.device_id
+        )
+
+        mode = self.app.fingerprint_generator.generate_fingerprint(
+            version=self.app.config.device.user_agent.app_version,
+            device_id=device_id,
+            calls_seed=self.app.handshake_response.calls_seed,
+            arch=self.app.config.device.user_agent.arch or "arm64-v8a",
+        )
+
+        frame = RequestCodePayload(phone=phone, mode=mode)
         response = await self.app.invoke(Opcode.AUTH_REQUEST, frame.to_payload())
         logger.debug(
             "sms code request accepted payload_keys=%s",
@@ -72,7 +88,11 @@ class AuthService:
             bool(token),
             bool(verify_code),
         )
-        frame = SendCodePayload(token=token, verify_code=verify_code)
+
+        frame = SendCodePayload(
+            token=token,
+            verify_code=verify_code,
+        )
         response = await self.app.invoke(Opcode.AUTH, frame.to_payload())
         logger.debug(
             "sms code response payload_keys=%s",
@@ -117,11 +137,28 @@ class AuthService:
             raise RuntimeError("No session available for login")
 
         logger.info("logging in")
+
+        if not self.app.handshake_response:
+            logger.error("login requested without handshake response")
+            raise RuntimeError("No handshake response available for login")
+
+        device_id = (
+            self.app.session.device_id if self.app.session else self.app.config.device.device_id
+        )
+
+        ccf = self.app.fingerprint_generator.generate_fingerprint(
+            version=self.app.config.device.user_agent.app_version,
+            device_id=device_id,
+            calls_seed=self.app.handshake_response.calls_seed,
+            arch=self.app.config.device.user_agent.arch or "arm64-v8a",
+        )
+
         sync = self.app.config.sync.resolve(session.sync)
         frame = SyncPayload.from_sync_state(
             user_agent=self.app.config.device.user_agent,
             token=session.token,
             sync=sync,
+            chat_cache_fingerprint=ccf,
         )
         response = await self.app.invoke(Opcode.LOGIN, frame.to_payload())
 

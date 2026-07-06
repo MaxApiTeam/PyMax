@@ -414,9 +414,7 @@ def test_video_request_supports_legacy_and_external_only_payloads() -> None:
     legacy = VideoRequest.model_validate(
         {"cache": True, "dynamicUrl": "https://video.test/legacy"}
     )
-    external = VideoRequest.model_validate(
-        {"cache": True, "EXTERNAL": "https://m.ok.ru/video/1"}
-    )
+    external = VideoRequest.model_validate({"cache": True, "EXTERNAL": "https://m.ok.ru/video/1"})
 
     assert legacy.url == "https://video.test/legacy"
     assert external.url is None

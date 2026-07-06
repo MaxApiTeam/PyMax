@@ -10,12 +10,13 @@ from .enums import AuthType, TwoFactorAction
 class RequestCodePayload(CamelModel):
     phone: str
     type: AuthType = AuthType.START_AUTH
-    language: str = "ru"
+    mode: bytes | None
 
 
 class SendCodePayload(CamelModel):
     token: str
     verify_code: str
+
     auth_token_type: AuthType = AuthType.CHECK_CODE
 
 
@@ -54,7 +55,7 @@ class WebSyncPayload(CamelModel):
 class SyncPayload(CamelModel):
     user_agent: MobileUserAgentPayload
     token: str
-    chat_hash_fingerprint: str | None = None
+    chat_cache_fingerprint: bytes | None = None
     chats_count: int | None = None
     chats_sync: int = -1
     contacts_sync: int = -1
@@ -70,10 +71,12 @@ class SyncPayload(CamelModel):
         user_agent: MobileUserAgentPayload,
         token: str,
         sync: SyncState,
+        chat_cache_fingerprint: bytes | None = None,
     ) -> "SyncPayload":
         return cls(
             user_agent=user_agent,
             token=token,
+            chat_cache_fingerprint=chat_cache_fingerprint,
             chats_sync=sync.chats_sync,
             contacts_sync=sync.contacts_sync,
             drafts_sync=sync.drafts_sync,
