@@ -27,6 +27,7 @@ from .payloads import (
     FetchChatsPayload,
     FetchJoinRequests,
     GetChatInfoPayload,
+    GetChatMembersPayload,
     InviteUsersPayload,
     JoinChatPayload,
     JoinRequestActionPayload,
@@ -265,6 +266,14 @@ class ChatService:
                 cached[chat.id] = chat
 
         return [cached[chat_id] for chat_id in chat_ids if chat_id in cached]
+
+    async def get_chat_members(self, chat_id: int, marker: int | None = None) -> list[Member]:
+        frame = GetChatMembersPayload(chat_id=chat_id, marker=marker or 0)
+        response = await self.app.invoke(Opcode.CHAT_MEMBERS, frame.to_payload())
+        return bind_api_model(
+            self.app,
+            parse_payload_list(response, ChatPayloadKey.MEMBERS, Member),
+        )
 
     async def get_chat(self, chat_id: int) -> Chat:
         chats = await self.get_chats([chat_id])

@@ -211,6 +211,22 @@ class ChatMixin(IClientProtocol):
         """
         return await self._app.api.chats.get_chat(chat_id)
 
+    async def get_chat_members(self, chat_id: int, marker: int | None = None) -> list[Member]:
+        """Возвращает участников чата по ID.
+
+        Args:
+            chat_id: ID чата.
+            marker: Маркер пагинации. Если ``None``, запрашивается первая
+                страница.
+
+        Returns:
+            Список участников.
+
+        Raises:
+            PyMaxError: Если сервер не вернул участников.
+        """
+        return await self._app.api.chats.get_chat_members(chat_id, marker)
+
     async def leave_group(self, chat_id: int) -> None:
         """Выходит из группы.
 
