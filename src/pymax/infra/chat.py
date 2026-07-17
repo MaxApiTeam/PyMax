@@ -211,19 +211,22 @@ class ChatMixin(IClientProtocol):
         """
         return await self._app.api.chats.get_chat(chat_id)
 
-    async def get_chat_members(self, chat_id: int, marker: int | None = None) -> list[Member]:
-        """Возвращает участников чата по ID.
+    async def get_chat_members(
+        self,
+        chat_id: int,
+        marker: int | None = None,
+    ) -> tuple[list[Member], int]:
+        """Возвращает страницу участников чата по ID.
 
         Args:
             chat_id: ID чата.
-            marker: Маркер пагинации. Если ``None``, запрашивается первая
-                страница.
+            marker: Маркер страницы.
 
         Returns:
-            Список участников.
-
-        Raises:
-            PyMaxError: Если сервер не вернул участников.
+            ``(members, next_marker)``. Если участников больше, чем
+            уместилось в ответ, ``next_marker`` ненулевой — передайте его в
+            следующий вызов, чтобы получить следующую страницу. ``0``
+            означает, что дальше страниц нет.
         """
         return await self._app.api.chats.get_chat_members(chat_id, marker)
 

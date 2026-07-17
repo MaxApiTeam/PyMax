@@ -7,6 +7,7 @@ from pymax.api.binding import bind_api_model
 from pymax.api.response import (
     parse_payload_item_model,
     parse_payload_list,
+    payload_item,
     require_payload_item_model,
     require_payload_model,
 )
@@ -267,13 +268,20 @@ class ChatService:
 
         return [cached[chat_id] for chat_id in chat_ids if chat_id in cached]
 
-    async def get_chat_members(self, chat_id: int, marker: int | None = None) -> list[Member]:
+    async def get_chat_members(
+        self,
+        chat_id: int,
+        marker: int | None = None,
+    ) -> tuple[list[Member], int]:
         frame = GetChatMembersPayload(chat_id=chat_id, marker=marker or 0)
         response = await self.app.invoke(Opcode.CHAT_MEMBERS, frame.to_payload())
-        return bind_api_model(
+
+        members = bind_api_model(
             self.app,
             parse_payload_list(response, ChatPayloadKey.MEMBERS, Member),
         )
+        next_marker = payload_item(response, ChatPayloadKey.MARKER, int) or 0
+        return members, next_marker
 
     async def get_chat(self, chat_id: int) -> Chat:
         chats = await self.get_chats([chat_id])
