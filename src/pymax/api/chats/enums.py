@@ -22,6 +22,7 @@ class ChatPayloadKey(str, Enum):
     CHAT = "chat"
     CHATS = "chats"
     MEMBERS = "members"
+    MARKER = "marker"
 
 
 class ChatLinkPrefix(str, Enum):

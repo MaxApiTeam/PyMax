@@ -95,6 +95,13 @@ class GetChatInfoPayload(CamelModel):
     chat_ids: list[int]
 
 
+class GetChatMembersPayload(CamelModel):
+    type: str = "MEMBER"  # TODO: ENUMM!!!
+    chat_id: int
+    marker: int
+    count: int = 50
+
+
 class LeaveChatPayload(CamelModel):
     chat_id: int
 
