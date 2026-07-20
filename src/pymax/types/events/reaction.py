@@ -17,5 +17,5 @@ class ReactionUpdateEvent(CamelModel):
 
     message_id: str
     chat_id: int
-    counters: list[ReactionCounter] | None
+    counters: list[ReactionCounter] | None = None
     total_count: int = 0
