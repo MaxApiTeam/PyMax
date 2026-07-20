@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from pymax.api.binding import bind_api_model
 from pymax.protocol import InboundFrame, Opcode
 from pymax.protocol.enums import Command
-from pymax.types import Chat, MessageDeleteEvent
+from pymax.types import AudioUploadSignal, Chat, MessageDeleteEvent
 from pymax.types.domain import Message
 from pymax.types.events import (
     FileUploadSignal,
@@ -100,4 +100,6 @@ class EventMapper:
                 return VideoUploadSignal.model_validate(frame.payload)
             elif event_type == EventType.FILE_READY:
                 return FileUploadSignal.model_validate(frame.payload)
+            elif event_type == EventType.VOICE_READY:
+                return AudioUploadSignal.model_validate(frame.payload)
         return frame

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Annotated, Any, TypeAlias
 
 from pydantic import Field, PrivateAttr, model_validator
 
-from pymax.files import File, Photo, Video
+from pymax.files import File, Photo, Video, Voice
 from pymax.types.domain import (
     AudioAttachment,
     CallAttachment,
@@ -45,7 +45,7 @@ KnownAttachment: TypeAlias = Annotated[
     Field(discriminator="type"),
 ]
 Attachment: TypeAlias = KnownAttachment | UnknownAttachment
-SendAttachment: TypeAlias = Photo | File | Video | Poll
+SendAttachment: TypeAlias = Photo | File | Video | Poll | Voice
 SendAttachments: TypeAlias = Sequence[SendAttachment] | None
 
 

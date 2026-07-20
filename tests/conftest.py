@@ -24,7 +24,7 @@ from pymax.config import ClientConfig, DeviceConfig
 from pymax.fingerprint.fingerprint import FingerprintGenerator
 from pymax.protocol import Command, InboundFrame
 from pymax.session.models import SessionInfo
-from pymax.types.domain import HandshakeResponse
+from pymax.types.domain import AttachmentType, HandshakeResponse
 from pymax.types.domain.sync import SyncOverrides
 
 
@@ -78,6 +78,11 @@ class FakeUploads:
             token="video-token",
         )
         self.file_result: AttachFilePayload | None = AttachFilePayload(file_id=30)
+        self.voice_result: VideoAttachPayload | None = VideoAttachPayload(
+            type=AttachmentType.AUDIO,
+            video_id=40,
+            token="voice-token",
+        )
         self.calls: list[tuple[str, Any]] = []
 
     async def upload_photo(self, photo: Any) -> AttachPhotoPayload | None:
@@ -91,6 +96,10 @@ class FakeUploads:
     async def upload_file(self, file: Any) -> AttachFilePayload | None:
         self.calls.append(("file", file))
         return self.file_result
+
+    async def upload_voice(self, voice: Any) -> VideoAttachPayload | None:
+        self.calls.append(("voice", voice))
+        return self.voice_result
 
 
 def mobile_user_agent(

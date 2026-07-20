@@ -5,7 +5,7 @@ import pytest
 from pymax.api.messages.enums import ItemType, MessagePayloadKey
 from pymax.api.uploads.payloads import AttachPhotoPayload
 from pymax.exceptions import UploadError
-from pymax.files import File, Photo, Video
+from pymax.files import File, Photo, Video, Voice
 from pymax.protocol import Opcode
 from pymax.types.domain.attachments import VideoRequest
 from tests.conftest import FakeApp, frame, message_payload
@@ -104,10 +104,13 @@ async def test_upload_attachments_handles_file_video_and_empty_lists() -> None:
     app = FakeApp()
     assert await app.api.messages._upload_attachments(None) == []
 
-    result = await app.api.messages._upload_attachments([File(raw=b"abc", name="doc.txt")])
+    file = File(raw=b"abc", name="doc.txt")
+    voice = Voice(raw=b"voice", name="voice.ogg")
+    result = await app.api.messages._upload_attachments([file, voice])
 
     assert result[0].file_id == 30
-    assert app.api.uploads.calls[0][0] == "file"
+    assert result[1].type.value == "AUDIO"
+    assert app.api.uploads.calls == [("file", file), ("voice", voice)]
 
 
 @pytest.mark.asyncio

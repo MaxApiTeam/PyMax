@@ -72,6 +72,10 @@ async def test_dispatcher_maps_chat_delete_and_internal_attach_events() -> None:
     async def on_file(signal, _client):
         seen.append(("file", signal.file_id, None))
 
+    @dispatcher.on_internal(EventType.VOICE_READY)
+    async def on_voice(signal, _client):
+        seen.append(("voice", signal.audio_id, None))
+
     await dispatcher.dispatch(
         frame(
             {
@@ -97,11 +101,15 @@ async def test_dispatcher_maps_chat_delete_and_internal_attach_events() -> None:
     await dispatcher.dispatch(
         frame({"fileId": 99}, opcode=Opcode.NOTIF_ATTACH, cmd=Command.REQUEST)
     )
+    await dispatcher.dispatch(
+        frame({"audioId": 100}, opcode=Opcode.NOTIF_ATTACH, cmd=Command.REQUEST)
+    )
 
     assert seen == [
         ("chat", 5, True),
         ("delete", (1, 2), None),
         ("file", 99, None),
+        ("voice", 100, None),
     ]
 
 

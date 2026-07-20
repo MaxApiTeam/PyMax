@@ -18,7 +18,7 @@ from pymax.api.uploads.payloads import (
     VideoAttachPayload,
 )
 from pymax.exceptions import UploadError
-from pymax.files import File, Photo, Video
+from pymax.files import File, Photo, Video, Voice
 from pymax.formatting.markdown import Formatter
 from pymax.logging import get_logger
 from pymax.protocol import Opcode
@@ -56,7 +56,7 @@ from .payloads import (
 if TYPE_CHECKING:
     from pymax.app import App
 
-SendAttachment: TypeAlias = Photo | File | Video | Poll
+SendAttachment: TypeAlias = Photo | File | Video | Poll | Voice
 SendAttachments: TypeAlias = Sequence[SendAttachment] | None
 
 logger = get_logger(__name__)
@@ -83,7 +83,15 @@ class MessageService:
             return result
 
         for attachment in attachments:
-            if isinstance(attachment, Photo):
+            if isinstance(attachment, Voice):
+                upload_result = await self.app.api.uploads.upload_voice(attachment)
+                if not upload_result:
+                    logger.error("Voice uploading failed")
+                    raise UploadError("Voice uploading failed")
+
+                result.append(upload_result)
+
+            elif isinstance(attachment, Photo):
                 upload_result = await self.app.api.uploads.upload_photo(attachment)
                 if not upload_result:
                     logger.error("Photo uploading failed")

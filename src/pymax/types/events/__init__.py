@@ -5,3 +5,4 @@ from .presence import PresenceEvent
 from .reaction import ReactionUpdateEvent
 from .typing import TypingEvent
 from .video import VideoUploadSignal
+from .voice import AudioUploadSignal

@@ -11,9 +11,10 @@ from pydantic import ValidationError
 from pymax.api.response import payload_item
 from pymax.dispatch.enums import EventType
 from pymax.exceptions import UploadError
-from pymax.files import File, Photo, Video
+from pymax.files import File, Photo, Video, Voice
 from pymax.logging import get_logger
 from pymax.protocol import Opcode
+from pymax.types import AttachmentType, AudioUploadSignal
 
 from .models import (
     FileUploadResponse,
@@ -40,14 +41,16 @@ class UploadService:
         self.app = app
         self.video_upload_waiters: dict[int, asyncio.Future[VideoUploadSignal]] = {}
         self.file_upload_waiters: dict[int, asyncio.Future[FileUploadSignal]] = {}
+        self.voice_upload_waiters: dict[int, asyncio.Future[AudioUploadSignal]] = {}
         self.app.dispatcher.on_internal(EventType.VIDEO_READY)(self.on_video_attach)
         self.app.dispatcher.on_internal(EventType.FILE_READY)(self.on_file_attach)
+        self.app.dispatcher.on_internal(EventType.VOICE_READY)(self.on_voice_attach)
 
     async def upload_photo(self, photo: Photo, profile: bool = False) -> AttachPhotoPayload:
         logger.info("Uploading photo")
         logger.debug("Preparing photo upload payload")
 
-        payload = UploadPayload(profile=profile).model_dump()
+        payload = UploadPayload(profile=profile).to_payload()
 
         try:
             data = await self.app.invoke(
@@ -178,11 +181,143 @@ class UploadService:
         logger.debug("Photo upload complete photo_id=%s", photo_id)
         return AttachPhotoPayload(photo_token=token)
 
+    async def upload_voice(self, voice: Voice) -> VideoAttachPayload:
+        logger.info("Uploading voice")
+
+        payload = UploadPayload(
+            type=2,
+            uploader_type=1,
+        ).to_payload()
+
+        try:
+            data = await self.app.invoke(
+                Opcode.VIDEO_UPLOAD,
+                payload=payload,
+            )
+        except Exception as e:
+            logger.exception("Failed to request voice upload URL")
+            raise UploadError("Failed to request voice upload URL") from e
+
+        try:
+            response = VideoUploadResponse.model_validate(data.payload)
+        except ValidationError as e:
+            logger.exception("Invalid voice upload response model")
+            logger.debug("Invalid voice upload payload=%r", data.payload)
+            raise UploadError("Invalid voice upload response model") from e
+        except Exception as e:
+            logger.exception("Failed to parse voice upload response")
+            logger.debug("Invalid voice upload payload=%r", data.payload)
+            raise UploadError("Failed to parse voice upload response") from e
+
+        try:
+            upload_info = response.info[0]
+        except IndexError as e:
+            logger.error("voice upload response info is empty")
+            logger.debug("voice upload response=%r", response)
+            raise UploadError("voice upload response info is empty") from e
+        except Exception as e:
+            logger.exception("Failed to get voice upload info")
+            logger.debug("voice upload response=%r", response)
+            raise UploadError("Failed to get voice upload info") from e
+
+        try:
+            file_size = await voice.size()
+        except Exception as e:
+            logger.exception("Failed to get voice size")
+            raise UploadError("Failed to get voice size") from e
+
+        headers = {
+            "Content-Disposition": f"attachment; filename={quote(voice.name)}",
+            "Content-Range": f"0-{file_size - 1}/{file_size}",
+            "Content-Length": str(file_size),
+            "Connection": "keep-alive",
+            "Content-Type": "application/octet-stream",
+        }
+
+        logger.debug(
+            "Voice upload headers prepared content_range=%s",
+            headers["Content-Range"],
+        )
+
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[AudioUploadSignal] = loop.create_future()
+
+        timeout = aiohttp.ClientTimeout(total=900, sock_read=60)
+
+        video_id = upload_info.video_id
+        token = upload_info.token
+
+        self.voice_upload_waiters[video_id] = future
+        logger.debug("Voice upload waiter registered voice_id=%s", video_id)
+
+        try:
+            async with aiohttp.ClientSession(
+                timeout=timeout, proxy=self.app.config.proxy
+            ) as session:
+                logger.debug("Starting voice upload HTTP request voice_id=%s", video_id)
+
+                async with session.post(
+                    url=upload_info.url,
+                    headers=headers,
+                    data=voice.iter_chunks(1024 * 1024),
+                ) as response:
+                    logger.debug(
+                        "Voice upload HTTP response status=%s voice_id=%s",
+                        response.status,
+                        video_id,
+                    )
+
+                    if response.status != HTTPStatus.OK:
+                        logger.error(
+                            "Voice upload failed with status %s video_id=%s",
+                            response.status,
+                            video_id,
+                        )
+                        raise UploadError(
+                            "Voice upload failed with status "
+                            f"{response.status} voice_id={video_id}"
+                        )
+
+                    try:
+                        logger.debug(
+                            "Waiting for voice processing notification voice_id=%s",
+                            video_id,
+                        )
+                        await asyncio.wait_for(future, 60)
+                    except asyncio.TimeoutError:
+                        logger.warning(
+                            "Timed out waiting for voice processing notification voice_id=%s",
+                            video_id,
+                        )
+                        raise UploadError(
+                            f"Timed out waiting for voice processing voice_id={video_id}"
+                        )
+
+                    logger.debug("Voice upload complete voice_id=%s", video_id)
+                    return VideoAttachPayload(
+                        type=AttachmentType.AUDIO, video_id=video_id, token=token
+                    )
+
+        except UploadError:
+            raise
+        except aiohttp.ClientError as e:
+            logger.exception("HTTP error during voice upload voice_id=%s", video_id)
+            raise UploadError(f"HTTP error during voice upload voice_id={video_id}") from e
+        except asyncio.TimeoutError as e:
+            logger.exception("Timed out during voice upload voice_id=%s", video_id)
+            raise UploadError(f"Timed out during voice upload voice_id={video_id}") from e
+        except Exception as e:
+            logger.exception("Unexpected error during voice upload voice_id=%s", video_id)
+            raise UploadError(f"Unexpected error during voice upload voice_id={video_id}") from e
+        finally:
+            self.voice_upload_waiters.pop(video_id, None)
+            logger.debug("Voice upload waiter removed voice_id=%s", video_id)
+
     async def upload_video(self, video: Video) -> VideoAttachPayload:
         logger.info("Uploading video")
         logger.debug("Preparing video upload payload")
 
-        payload = UploadPayload().model_dump()
+        payload = UploadPayload().to_payload()
 
         try:
             data = await self.app.invoke(
@@ -314,7 +449,7 @@ class UploadService:
     async def upload_file(self, file: File) -> AttachFilePayload:
         logger.info("Uploading file")
 
-        payload = UploadPayload().model_dump()
+        payload = UploadPayload().to_payload()
 
         try:
             data = await self.app.invoke(
@@ -429,6 +564,20 @@ class UploadService:
         finally:
             self.file_upload_waiters.pop(file_id, None)
             logger.debug("File upload waiter removed file=%s", file_id)
+
+    async def on_voice_attach(self, attach: AudioUploadSignal, _: Client) -> None:
+        future = self.voice_upload_waiters.pop(attach.audio_id, None)
+
+        if not future:
+            logger.debug("No voice upload waiter found voice_id=%s", attach.audio_id)
+            return
+
+        if future.done():
+            logger.debug("Voice upload waiter already done voice_id=%s", attach.audio_id)
+            return
+
+        future.set_result(attach)
+        logger.debug("Voice upload waiter resolved voice_id=%s", attach.audio_id)
 
     async def on_video_attach(self, attach: VideoUploadSignal, _: Client) -> None:
         logger.debug("Received attach event video_id=%s", attach.video_id)

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import pytest
 
+from pymax.api.uploads.payloads import UploadPayload
 from pymax.api.uploads.service import UploadService
-from pymax.files import File, Photo, Video
+from pymax.files import File, Photo, Video, Voice
 from pymax.protocol import Opcode
-from pymax.types.events import FileUploadSignal, VideoUploadSignal
+from pymax.types import AttachmentType
+from pymax.types.events import AudioUploadSignal, FileUploadSignal, VideoUploadSignal
 from tests.conftest import FakeApp, frame
 
 
@@ -46,6 +48,15 @@ class FakeHttpSession:
         return self.response
 
 
+def test_upload_payload_uses_regular_video_defaults() -> None:
+    assert UploadPayload().to_payload() == {
+        "count": 1,
+        "type": 0,
+        "uploaderType": 0,
+        "profile": False,
+    }
+
+
 @pytest.mark.asyncio
 async def test_upload_photo_requests_url_posts_file_and_returns_attach_payload(
     monkeypatch: pytest.MonkeyPatch,
@@ -70,22 +81,27 @@ async def test_upload_photo_requests_url_posts_file_and_returns_attach_payload(
 
 
 @pytest.mark.asyncio
-async def test_upload_waiters_resolve_video_and_file_processing_signals() -> None:
+async def test_upload_waiters_resolve_processing_signals() -> None:
     app = FakeApp()
     service = UploadService(app)
     loop = __import__("asyncio").get_running_loop()
     video_future = loop.create_future()
     file_future = loop.create_future()
+    voice_future = loop.create_future()
     service.video_upload_waiters[1] = video_future
     service.file_upload_waiters[2] = file_future
+    service.voice_upload_waiters[3] = voice_future
 
     await service.on_video_attach(VideoUploadSignal(video_id=1), None)
     await service.on_file_attach(FileUploadSignal(file_id=2), None)
+    await service.on_voice_attach(AudioUploadSignal(audio_id=3), None)
 
     assert video_future.result().video_id == 1
     assert file_future.result().file_id == 2
+    assert voice_future.result().audio_id == 3
     assert service.video_upload_waiters == {}
     assert service.file_upload_waiters == {}
+    assert service.voice_upload_waiters == {}
 
 
 @pytest.mark.asyncio
@@ -126,6 +142,53 @@ async def test_upload_video_posts_chunks_waits_for_processing_and_cleans_waiter(
     assert service.video_upload_waiters == {}
     assert FakeHttpSession.posts[0]["headers"]["Content-Range"] == "0-4/5"
     assert FakeHttpSession.posts[0]["url"] == "https://upload.test/video"
+
+
+@pytest.mark.asyncio
+async def test_upload_voice_posts_chunks_waits_for_processing_and_cleans_waiter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = FakeApp(
+        [
+            frame(
+                {
+                    "info": [
+                        {
+                            "url": "https://upload.test/voice",
+                            "videoId": 12,
+                            "token": "voice-token",
+                        }
+                    ]
+                }
+            )
+        ]
+    )
+    service = UploadService(app)
+
+    def resolve_processing() -> None:
+        service.voice_upload_waiters[12].set_result(AudioUploadSignal(audio_id=12))
+
+    FakeHttpSession.posts = []
+    FakeHttpSession.response = FakeHttpResponse(200, on_enter=resolve_processing)
+    monkeypatch.setattr(
+        "pymax.api.uploads.service.aiohttp.ClientSession",
+        FakeHttpSession,
+    )
+
+    result = await service.upload_voice(Voice(raw=b"voice", name="voice.ogg"))
+
+    assert result.type == AttachmentType.AUDIO
+    assert result.video_id == 12
+    assert result.token == "voice-token"
+    assert app.calls[0].payload == {
+        "count": 1,
+        "type": 2,
+        "uploaderType": 1,
+        "profile": False,
+    }
+    assert service.voice_upload_waiters == {}
+    assert FakeHttpSession.posts[0]["headers"]["Content-Range"] == "0-4/5"
+    assert FakeHttpSession.posts[0]["url"] == "https://upload.test/voice"
 
 
 @pytest.mark.asyncio

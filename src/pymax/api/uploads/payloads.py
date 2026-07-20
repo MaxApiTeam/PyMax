@@ -22,4 +22,6 @@ class AttachFilePayload(CamelModel):
 
 class UploadPayload(CamelModel):
     count: int = 1
+    type: int = 0
+    uploader_type: int = 0
     profile: bool = False

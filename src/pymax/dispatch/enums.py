@@ -13,5 +13,6 @@ class EventType(str, Enum):
     USER_UPDATE = "user_update"
     VIDEO_READY = "video_ready"
     FILE_READY = "file_ready"
+    VOICE_READY = "voice_ready"
     RAW = "raw"
     ON_START = "on_start"

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from pymax import Voice
 from pymax.files import File, Photo
 from pymax.formatting.markdown import Formatter
 
@@ -43,6 +44,10 @@ def test_file_and_photo_validation_errors() -> None:
 
     with pytest.raises(ValueError, match="Invalid photo extension"):
         Photo(raw=b"not image", name="bad.txt").validate_photo()
+
+
+def test_voice_derives_name_from_path() -> None:
+    assert Voice(path="recordings/voice.ogg").name == "voice.ogg"
 
 
 def test_photo_url_validation_ignores_query_string() -> None:
