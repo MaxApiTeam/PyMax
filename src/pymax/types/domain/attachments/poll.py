@@ -20,6 +20,19 @@ class PollAnswer(CamelModel):
     answer_id: int | None = None
 
 
+class PollVote(CamelModel):
+    """Голос пользователя за один вариант ответа.
+
+    :ivar timestamp: Время голосования в формате Unix time.
+    :vartype timestamp: int
+    :ivar user_id: ID проголосовавшего пользователя.
+    :vartype user_id: int
+    """
+
+    timestamp: int
+    user_id: int
+
+
 class PollResult(CamelModel):
     """Результат голосования по одному варианту ответа.
 
@@ -27,8 +40,8 @@ class PollResult(CamelModel):
     :vartype answer_id: int
     :ivar vote_count: Количество голосов.
     :vartype vote_count: int
-    :ivar votes: ID проголосовавших пользователей, доступные текущему аккаунту.
-    :vartype votes: list[int]
+    :ivar votes: Голоса пользователей, доступные текущему аккаунту.
+    :vartype votes: list[PollVote]
     :ivar rate: Доля голосов в формате, возвращаемом Max.
     :vartype rate: int
     :ivar options: Дополнительные параметры результата от Max.
@@ -37,7 +50,7 @@ class PollResult(CamelModel):
 
     answer_id: int
     vote_count: int
-    votes: list[int]
+    votes: list[PollVote]
     rate: int
     options: int
 
