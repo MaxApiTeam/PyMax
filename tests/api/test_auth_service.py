@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from pymax.api.auth.enums import ProfileOptions, TwoFactorAction
+from pymax.api.auth.enums import AuthType, ProfileOptions, TwoFactorAction
 from pymax.api.session.enums import DeviceType
 from pymax.protocol import Opcode
 from pymax.session.models import SessionInfo
+from pymax.types.domain import Login2Flags
 from pymax.types.domain.sync import SyncState
 from tests.conftest import (
     FakeApp,
@@ -120,6 +121,61 @@ async def test_mobile_login_sends_sync_payload_and_persists_updated_session() ->
     assert response.messages[100][0]._actions is app.api.messages
     assert response.contacts[0] is not None
     assert response.contacts[0]._actions is app.api.users
+
+
+@pytest.mark.asyncio
+async def test_mobile_login2_sends_flags_binds_models_and_updates_config_hash() -> None:
+    app = FakeApp(
+        [
+            frame(
+                {
+                    "profile": profile_payload(42),
+                    "contactInfos": [user_payload(43)],
+                    "config": {"hash": "new-hash"},
+                }
+            )
+        ]
+    )
+    app.session = SessionInfo(
+        token="local-token",
+        device_id="device-test",
+        phone="+79990000000",
+        sync=SyncState(
+            chats_sync=1,
+            contacts_sync=2,
+            drafts_sync=3,
+            presence_sync=4,
+            config_hash="old-hash",
+        ),
+    )
+
+    response = await app.api.auth.mobile_login2(
+        Login2Flags(
+            config_enabled=True,
+            contact_enabled=True,
+            profile_enabled=True,
+        )
+    )
+
+    assert app.calls[0].opcode == Opcode.LOGIN2
+    assert app.calls[0].payload == {
+        "needProfile": True,
+        "contactsSync": 2,
+        "configHash": "old-hash",
+    }
+    assert response.profile is not None
+    assert response.profile.contact._actions is app.api.users
+    assert response.contacts[0] is not None
+    assert response.contacts[0]._actions is app.api.users
+    assert app.session is not None
+    assert app.session.sync == SyncState(
+        chats_sync=1,
+        contacts_sync=2,
+        drafts_sync=3,
+        presence_sync=4,
+        config_hash="new-hash",
+    )
+    assert app.store.saved_sessions == [app.session]
 
 
 @pytest.mark.asyncio
@@ -264,7 +320,7 @@ async def test_confirm_registration_sends_profile_and_parses_token() -> None:
                 {
                     "userToken": 42,
                     "profile": profile_payload(42),
-                    "tokenType": "REGISTER",
+                    "tokenType": "LOGIN",
                     "token": "registered-token",
                 }
             )
@@ -278,6 +334,7 @@ async def test_confirm_registration_sends_profile_and_parses_token() -> None:
     )
 
     assert result.token == "registered-token"
+    assert result.token_type == AuthType.LOGIN
     assert result.profile.contact.id == 42
     assert app.calls[0].opcode == Opcode.AUTH_CONFIRM
     assert app.calls[0].payload == {

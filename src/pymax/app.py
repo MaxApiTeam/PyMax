@@ -16,7 +16,8 @@ from pymax.session import SessionStore
 from pymax.session.models import SessionInfo
 from pymax.telemetry import TelemetryService
 from pymax.types import MaxApiError, Message
-from pymax.types.domain import Chat, HandshakeResponse, Profile, User
+from pymax.types.domain import Chat, HandshakeResponse, Login2Response, Profile, User
+from pymax.types.domain.login import LoginResponse
 
 if TYPE_CHECKING:
     from pymax.base import BaseClient
@@ -134,9 +135,22 @@ class App(Generic[ClientT]):
         logger.debug("logging in")
 
         try:
-            response = await self.api.auth.login(
-                self.config.device.user_agent,
-            )
+            login_response, login2_response = await self.login()
+
+            if (
+                login2_response
+                and login_response.login2_flags
+                and login_response.login2_flags.profile_enabled
+                and login2_response.profile
+            ):
+                self.me = login2_response.profile
+            elif login_response.profile:
+                self.me = login_response.profile
+            elif login2_response and login2_response.profile:
+                self.me = login2_response.profile
+            else:
+                logger.error("Impossible state: login response does not contain profile")
+                raise RuntimeError("Login response does not contain profile")
         except Exception as e:
             handled = False
             if self.dispatcher.client is not None:
@@ -153,15 +167,23 @@ class App(Generic[ClientT]):
             await self.close()
             return
 
-        if response.token is not None and response.token != self.session.token:
-            await self.store.update_token(self.session.token, response.token)
-            self.session.token = response.token
+        if login_response.token is not None and login_response.token != self.session.token:
+            await self.store.update_token(self.session.token, login_response.token)
+            self.session.token = login_response.token
 
-        self.me = response.profile
-        self.chats = response.chats
+        self.chats = login_response.chats
         self.users[self.me.contact.id] = self.me.contact
-        self.contacts = response.contacts
-        self.messages = response.messages
+
+        if (
+            login2_response
+            and login_response.login2_flags
+            and login_response.login2_flags.contact_enabled
+        ):
+            self.contacts = login2_response.contacts
+        else:
+            self.contacts = login_response.contacts
+
+        self.messages = login_response.messages
 
         self.started = True
         logger.info(
@@ -172,6 +194,19 @@ class App(Generic[ClientT]):
 
         if self._telemetry:
             self._telemetry.start()
+
+    async def login(self) -> tuple[LoginResponse, Login2Response | None]:
+        login_response = await self.api.auth.login(
+            self.config.device.user_agent,
+        )
+
+        if login_response.login2_flags and login_response.login2_flags.enabled:
+            logger.debug("login2 required; proceeding with login2")
+            login2_response = await self.api.auth.mobile_login2(login_response.login2_flags)
+
+            return login_response, login2_response
+
+        return login_response, None
 
     async def handshake(self, device_id: str) -> HandshakeResponse:
         response = await self.api.session.handshake(

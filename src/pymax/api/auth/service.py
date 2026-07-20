@@ -13,6 +13,7 @@ from pymax.auth import EmailCodeProvider
 from pymax.auth.providers import ConsoleEmailCodeProvider
 from pymax.logging import get_logger
 from pymax.protocol import Opcode
+from pymax.types.domain import Login2Flags, Login2Response
 from pymax.types.domain.auth import (
     CheckCodeResponse,
     CheckPasswordResponse,
@@ -31,6 +32,7 @@ from .payloads import (
     ConfirmQrPayload,
     ConfirmRegistrationPayload,
     CreateAuthTrackPayload,
+    Login2Payload,
     MobileUserAgentPayload,
     RemoveTwoFactorPayload,
     RequestCodePayload,
@@ -172,6 +174,30 @@ class AuthService:
         await self._update_session(login_response)
         return login_response
 
+    async def mobile_login2(self, flags: Login2Flags) -> Login2Response:
+        session = self.app.session
+        if session is None:
+            logger.error("login2 requested without session")
+            raise RuntimeError("No session available for login2")
+
+        sync = self.app.config.sync.resolve(session.sync)
+
+        frame = Login2Payload.from_sync_state(
+            sync,
+            profile_enabled=flags.profile_enabled,
+            contact_enabled=flags.contact_enabled,
+        )
+
+        response = await self.app.invoke(Opcode.LOGIN2, frame.to_payload())
+        logger.debug("login2 response payload_keys=%s", payload_keys(response))
+
+        login2_response = bind_api_model(
+            self.app,
+            require_payload_model(response, Login2Response),
+        )
+        await self._update_session(login2_response)
+        return login2_response
+
     async def web_login(self) -> LoginResponse:
         session = self.app.session
         if session is None:
@@ -216,7 +242,7 @@ class AuthService:
 
         return require_payload_model(response, CheckCodeResponse)
 
-    async def _update_session(self, response: LoginResponse) -> None:
+    async def _update_session(self, response: LoginResponse | Login2Response) -> None:
         session = self.app.session
         if session is None:
             return

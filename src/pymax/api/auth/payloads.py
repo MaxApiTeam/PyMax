@@ -145,3 +145,22 @@ class ConfirmRegistrationPayload(CamelModel):
     last_name: str | None = None
     token: str
     token_type: AuthType = AuthType.REGISTER
+
+
+class Login2Payload(CamelModel):
+    need_profile: bool
+    contacts_sync: int
+    config_hash: ConfigHash
+
+    @classmethod
+    def from_sync_state(
+        cls,
+        sync: SyncState,
+        profile_enabled: bool,
+        contact_enabled: bool,
+    ) -> "Login2Payload":
+        return cls(
+            need_profile=profile_enabled,
+            contacts_sync=sync.contacts_sync if contact_enabled else -1,
+            config_hash=sync.config_hash,
+        )
