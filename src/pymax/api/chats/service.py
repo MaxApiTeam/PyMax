@@ -272,8 +272,9 @@ class ChatService:
         self,
         chat_id: int,
         marker: int | None = None,
+        count: int = 50,
     ) -> tuple[list[Member], int]:
-        frame = GetChatMembersPayload(chat_id=chat_id, marker=marker or 0)
+        frame = GetChatMembersPayload(chat_id=chat_id, marker=marker or 0, count=count)
         response = await self.app.invoke(Opcode.CHAT_MEMBERS, frame.to_payload())
 
         members = bind_api_model(

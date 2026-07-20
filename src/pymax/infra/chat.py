@@ -215,12 +215,15 @@ class ChatMixin(IClientProtocol):
         self,
         chat_id: int,
         marker: int | None = None,
+        count: int = 50,
     ) -> tuple[list[Member], int]:
         """Возвращает страницу участников чата по ID.
 
         Args:
             chat_id: ID чата.
-            marker: Маркер страницы.
+            marker: Маркер страницы. Если ``None``, запрашивается первая
+                страница.
+            count: Максимальное количество участников в ответе.
 
         Returns:
             ``(members, next_marker)``. Если участников больше, чем
@@ -228,7 +231,7 @@ class ChatMixin(IClientProtocol):
             следующий вызов, чтобы получить следующую страницу. ``0``
             означает, что дальше страниц нет.
         """
-        return await self._app.api.chats.get_chat_members(chat_id, marker)
+        return await self._app.api.chats.get_chat_members(chat_id, marker, count)
 
     async def leave_group(self, chat_id: int) -> None:
         """Выходит из группы.
