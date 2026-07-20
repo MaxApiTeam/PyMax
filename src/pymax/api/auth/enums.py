@@ -6,6 +6,7 @@ class AuthType(str, Enum):
     CHECK_CODE = "CHECK_CODE"
     REGISTER = "REGISTER"
     RESEND = "RESEND"
+    LOGIN = "LOGIN"
 
 
 class ProfileOptions(int, Enum):
