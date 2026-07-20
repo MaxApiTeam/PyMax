@@ -1,3 +1,4 @@
+from pymax.api.chats import ChannelPermissions
 from pymax.types import Chat, Member, Message
 
 from .protocol import IClientProtocol
@@ -394,3 +395,23 @@ class ChatMixin(IClientProtocol):
             Канал, в который вступил клиент.
         """
         return await self._app.api.chats.join_channel(link=link)
+
+    async def add_admin(
+        self,
+        chat_id: int,
+        user_id: int,
+        permissions: list[ChannelPermissions],
+    ) -> None:
+        """
+        Добавляет админа в канал
+
+        Args:
+            chat_id: id чата
+            user_id: Айди юзера
+            permissions: Список разрешений для юзера
+
+        Returns:
+            None
+
+        """
+        return await self._app.api.chats.add_admin(chat_id, user_id, permissions)

@@ -6,7 +6,7 @@ from pymax.api.models import CamelModel
 from pymax.types.domain.attachments.enums import AttachmentType
 from pymax.types.domain.enums import ChatType
 
-from .enums import ChatMemberOperation, ChatOption, ControlEvent
+from .enums import ChatMemberOperation, ChatOption, ControlEvent, PermType
 
 
 class CreateGroupAttach(CamelModel):
@@ -128,3 +128,11 @@ class DeleteChatPayload(CamelModel):
     chat_id: int
     last_event_time: int
     for_all: bool = True
+
+
+class AddAdminPayload(CamelModel):
+    chat_id: int
+    user_ids: list[int]
+    type: PermType = PermType.ADMIN
+    operation: str = "add"
+    permissions: int

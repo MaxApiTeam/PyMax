@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import time
+from functools import reduce
+from operator import or_
 from typing import TYPE_CHECKING
 
 from pymax.api.binding import bind_api_model
@@ -16,8 +18,9 @@ from pymax.logging import get_logger
 from pymax.protocol import Opcode
 from pymax.types.domain import Chat, Member, Message
 
-from .enums import ChatLinkPrefix, ChatMemberOperation, ChatPayloadKey
+from .enums import ChannelPermissions, ChatLinkPrefix, ChatMemberOperation, ChatPayloadKey
 from .payloads import (
+    AddAdminPayload,
     ChangeGroupProfilePayload,
     ChangeGroupSettingsOptions,
     ChangeGroupSettingsPayload,
@@ -398,3 +401,17 @@ class ChatService:
 
         await self.app.invoke(Opcode.CHAT_DELETE, frame.to_payload())
         self._remove_cached_chat(chat_id)
+
+    async def add_admin(
+        self,
+        chat_id: int,
+        user_id: int,
+        permissions: list[ChannelPermissions],
+    ) -> None:
+        frame = AddAdminPayload(
+            chat_id=chat_id,
+            user_ids=[user_id],
+            permissions=reduce(or_, permissions),
+        )
+
+        await self.app.invoke(Opcode.CHAT_MEMBERS_UPDATE, frame.to_payload())

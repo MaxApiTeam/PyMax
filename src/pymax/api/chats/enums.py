@@ -27,3 +27,17 @@ class ChatPayloadKey(str, Enum):
 
 class ChatLinkPrefix(str, Enum):
     JOIN = "join/"
+
+
+class ChannelPermissions(int, Enum):
+    ADD_REMOVE_MEMBER = 2
+    ADD_ADMIN = 4
+    CHANGE_CHAT_INFO = 8
+    PIN_MESSAGE = 16
+    POST_MESSAGE = 256
+    EDIT_MESSAGE = 512
+    DELETE_MESSAGE = 1024
+
+
+class PermType(str, Enum):
+    ADMIN = "ADMIN"
