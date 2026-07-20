@@ -12,6 +12,7 @@ from pymax.session import StoreProtocol
 from pymax.types.domain.sync import SyncOverrides
 
 APP_VERSIONS: tuple[tuple[str, int], ...] = (
+    ("26.21.1", 6763),
     ("26.20.2", 6758),
     ("26.20.1", 6740),
     ("26.19.3", 6734),

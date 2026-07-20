@@ -525,5 +525,22 @@
       "x86_64": "bb097419b05e41eba460d4d1041ec660cc5baa28cbb0e287deb05bf27549e8ca"
     },
     "build_number": 6758
+  },
+  "26.21.1": {
+    "signature_scheme": "v3",
+    "certificate_count": 1,
+    "certificate_meta_sha256": "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93",
+    "certificate_sha256": [
+      "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93"
+    ],
+    "dex_meta_sha256": "722162bea4e63c7fe39da201a8c7be94e53967f97c50fc397e7b16f3043467a2",
+    "so_meta_sha256_arm64_v8a": "90e2fb8745b17b42a10182f8d8ac590e3fca5b311e2ce2d5144fa2c18cb3090d",
+    "so_meta_sha256": {
+      "arm64-v8a": "90e2fb8745b17b42a10182f8d8ac590e3fca5b311e2ce2d5144fa2c18cb3090d",
+      "armeabi-v7a": "a62e2dfc3dcad88f866b5fcbba4c6d7bf1640118db98740ae22d647474bcce44",
+      "x86": "5723795fef7c3dc2c1f769be4a6b69c7568e3eb8f3279a6911718e902d38005e",
+      "x86_64": "bb097419b05e41eba460d4d1041ec660cc5baa28cbb0e287deb05bf27549e8ca"
+    },
+    "build_number": 6763
   }
 }
