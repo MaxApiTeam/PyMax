@@ -17,7 +17,10 @@ class WebSocketTransport(Transport):
     async def connect(self) -> None:
         if self.proxy:
             self.ws = await client.connect(
-                self.url, origin=Origin("https://web.max.ru"), proxy=self.proxy
+                self.url,
+                origin=Origin("https://web.max.ru"),
+                proxy=self.proxy,
+                max_size=1024 * 1024 * 10,  # 10 MB
             )
         else:
             self.ws = await client.connect(
