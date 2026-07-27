@@ -71,10 +71,8 @@ class User(CamelModel):
     phone: int | None = None
     status: str | None = None
     description: str | None = None
-    # Bots may send ``gender`` as a numeric code and ``web_app`` as a URL
-    # string instead of an object; accept these so profile parsing won't fail.
     gender: str | int | None = None
-    link: str | None = None
+    link: str | int | None = None
     web_app: dict[str, Any] | str | None = None
     menu_button: dict[str, Any] | None = None
 

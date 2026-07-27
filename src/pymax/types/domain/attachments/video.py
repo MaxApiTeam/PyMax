@@ -67,7 +67,7 @@ class VideoRequest(CamelModel):
     """
 
     external: str | bool | None = Field(default=None, alias="EXTERNAL")
-    cache: bool
+    cache: bool = False  # TODO: idk maybe | None = None better
     url: str | None = None
 
     @model_validator(mode="before")
