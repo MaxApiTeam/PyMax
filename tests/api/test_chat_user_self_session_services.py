@@ -431,7 +431,7 @@ async def test_session_handshake_switches_between_mobile_and_web_payloads() -> N
         "device",
     )
 
-    web_app = FakeApp([frame({"callsSeed": 202})], device_type=DeviceType.WEB)
+    web_app = FakeApp([frame({"serverTime": 123})], device_type=DeviceType.WEB)
     web_response = await web_app.api.session.handshake(
         "ignored",
         web_app.config.device.user_agent,
@@ -445,7 +445,7 @@ async def test_session_handshake_switches_between_mobile_and_web_payloads() -> N
     assert "mt_instanceid" not in web_app.calls[0].payload
     assert mobile_response is not None
     assert mobile_response.calls_seed == 101
-    assert web_response.calls_seed == 202
+    assert web_response.calls_seed is None
 
 
 @pytest.mark.asyncio

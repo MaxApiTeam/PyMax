@@ -69,12 +69,21 @@ class AuthService:
             self.app.session.device_id if self.app.session else self.app.config.device.device_id
         )
 
-        mode = self.app.fingerprint_generator.generate_fingerprint(
-            version=self.app.config.device.user_agent.app_version,
-            device_id=device_id,
-            calls_seed=self.app.handshake_response.calls_seed,
-            arch=self.app.config.device.user_agent.arch or "arm64-v8a",
-        )
+        if self.app.config.device.user_agent.device_type != DeviceType.WEB:
+            if self.app.handshake_response.calls_seed is None:
+                raise ValueError(
+                    "Unexpected internal state: handshake_response.calls_seed is missing "
+                    + "in AuthService.request_code. Please report this issue to the developer."
+                )
+
+            mode = self.app.fingerprint_generator.generate_fingerprint(
+                version=self.app.config.device.user_agent.app_version,
+                device_id=device_id,
+                calls_seed=self.app.handshake_response.calls_seed,
+                arch=self.app.config.device.user_agent.arch or "arm64-v8a",
+            )
+        else:
+            mode = None
 
         frame = RequestCodePayload(phone=phone, mode=mode)
         response = await self.app.invoke(Opcode.AUTH_REQUEST, frame.to_payload())
@@ -147,6 +156,12 @@ class AuthService:
         device_id = (
             self.app.session.device_id if self.app.session else self.app.config.device.device_id
         )
+
+        if self.app.handshake_response.calls_seed is None:
+            raise ValueError(
+                "Unexpected internal state: handshake_response.calls_seed is missing "
+                + "in AuthService.mobile_login. Please report this issue to the developer."
+            )
 
         ccf = self.app.fingerprint_generator.generate_fingerprint(
             version=self.app.config.device.user_agent.app_version,

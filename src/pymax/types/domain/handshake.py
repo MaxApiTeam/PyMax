@@ -8,4 +8,4 @@ class HandshakeResponse(CamelModel):
     :vartype calls_seed: int
     """
 
-    calls_seed: int
+    calls_seed: int | None = None

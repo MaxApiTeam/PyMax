@@ -149,7 +149,7 @@ class App(Generic[ClientT]):
             elif login2_response and login2_response.profile:
                 self.me = login2_response.profile
             else:
-                logger.error("Impossible state: login response does not contain profile")
+                logger.error("Unexpected internal state: login response does not contain profile")
                 raise RuntimeError("Login response does not contain profile")
         except Exception as e:
             handled = False

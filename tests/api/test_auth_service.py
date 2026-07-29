@@ -6,7 +6,7 @@ from pymax.api.auth.enums import AuthType, ProfileOptions, TwoFactorAction
 from pymax.api.session.enums import DeviceType
 from pymax.protocol import Opcode
 from pymax.session.models import SessionInfo
-from pymax.types.domain import Login2Flags
+from pymax.types.domain import HandshakeResponse, Login2Flags
 from pymax.types.domain.sync import SyncState
 from tests.conftest import (
     FakeApp,
@@ -62,6 +62,67 @@ async def test_request_and_send_code_parse_auth_responses() -> None:
         calls_seed=123,
     )
     assert app.calls[1].payload["verifyCode"] == "111111"
+
+
+@pytest.mark.asyncio
+async def test_web_request_code_omits_mode_without_calls_seed() -> None:
+    app = FakeApp(
+        [
+            frame(
+                {
+                    "token": "sms-token",
+                    "codeLength": 6,
+                    "requestMaxDuration": 60,
+                    "requestCountLeft": 2,
+                    "altActionDuration": 5,
+                }
+            )
+        ],
+        device_type=DeviceType.WEB,
+    )
+    app.handshake_response = HandshakeResponse()
+
+    await app.api.auth.request_code("+79990000000")
+
+    assert app.calls[0].opcode == Opcode.AUTH_REQUEST
+    assert "mode" not in app.calls[0].payload
+
+
+@pytest.mark.asyncio
+async def test_mobile_request_code_requires_calls_seed() -> None:
+    app = FakeApp()
+    app.handshake_response = HandshakeResponse()
+
+    with pytest.raises(ValueError, match="AuthService.request_code"):
+        await app.api.auth.request_code("+79990000000")
+
+    assert app.calls == []
+
+
+@pytest.mark.asyncio
+async def test_mobile_request_code_accepts_zero_calls_seed() -> None:
+    app = FakeApp(
+        [
+            frame(
+                {
+                    "token": "sms-token",
+                    "codeLength": 6,
+                    "requestMaxDuration": 60,
+                    "requestCountLeft": 2,
+                    "altActionDuration": 5,
+                }
+            )
+        ]
+    )
+    app.handshake_response = HandshakeResponse(calls_seed=0)
+
+    await app.api.auth.request_code("+79990000000")
+
+    assert app.calls[0].payload["mode"] == app.fingerprint_generator.generate_fingerprint(
+        version=app.config.device.user_agent.app_version,
+        device_id=app.config.device.device_id,
+        calls_seed=0,
+    )
 
 
 @pytest.mark.asyncio
@@ -204,6 +265,22 @@ async def test_login_without_session_raises_runtime_error() -> None:
     app = FakeApp()
 
     with pytest.raises(RuntimeError, match="No session available"):
+        await app.api.auth.mobile_login()
+
+    assert app.calls == []
+
+
+@pytest.mark.asyncio
+async def test_mobile_login_requires_calls_seed() -> None:
+    app = FakeApp()
+    app.session = SessionInfo(
+        token="local-token",
+        device_id="device-test",
+        phone="+79990000000",
+    )
+    app.handshake_response = HandshakeResponse()
+
+    with pytest.raises(ValueError, match="AuthService.mobile_login"):
         await app.api.auth.mobile_login()
 
     assert app.calls == []
