@@ -1,3 +1,5 @@
+from pydantic import Field
+
 from .base import CamelModel
 
 
@@ -9,3 +11,4 @@ class HandshakeResponse(CamelModel):
     """
 
     calls_seed: int | None = None
+    app_update_type: int | None = Field(alias="app-update-type")  # very bizarre casing

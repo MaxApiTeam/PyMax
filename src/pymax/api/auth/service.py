@@ -457,3 +457,8 @@ class AuthService:
         response = await self.app.invoke(Opcode.AUTH_CONFIRM, frame.to_payload())
 
         return require_payload_model(response, ConfirmRegistrationResponse)
+
+    def is_update_available(self) -> bool:
+        return bool(
+            self.app.handshake_response.app_update_type if self.app.handshake_response else False
+        )
