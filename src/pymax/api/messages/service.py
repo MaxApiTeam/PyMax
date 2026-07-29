@@ -18,7 +18,7 @@ from pymax.api.uploads.payloads import (
     VideoAttachPayload,
 )
 from pymax.exceptions import UploadError
-from pymax.files import File, Photo, Video, Voice
+from pymax.files import File, Photo, Video, VideoNote, Voice
 from pymax.formatting.markdown import Formatter
 from pymax.logging import get_logger
 from pymax.protocol import Opcode
@@ -56,7 +56,7 @@ from .payloads import (
 if TYPE_CHECKING:
     from pymax.app import App
 
-SendAttachment: TypeAlias = Photo | File | Video | Poll | Voice
+SendAttachment: TypeAlias = Photo | File | Video | Poll | Voice | VideoNote
 SendAttachments: TypeAlias = Sequence[SendAttachment] | None
 
 logger = get_logger(__name__)

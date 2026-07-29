@@ -84,6 +84,11 @@ dev = [
   "ruff>=0.8.0",
 ]
 
+[project.optional-dependencies]
+video = [
+  "tinytag>=2.2.1",
+]
+
 [tool.uv]
 package = true
 

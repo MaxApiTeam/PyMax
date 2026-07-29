@@ -4,6 +4,7 @@ from pathlib import Path
 from .base import BaseFile
 
 
+# TODO: add docs. can be only ogg
 class Voice(BaseFile):
     def __init__(
         self,

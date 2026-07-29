@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, quote, urlparse
@@ -11,7 +12,7 @@ from pydantic import ValidationError
 from pymax.api.response import payload_item
 from pymax.dispatch.enums import EventType
 from pymax.exceptions import UploadError
-from pymax.files import File, Photo, Video, Voice
+from pymax.files import File, Photo, Video, VideoNote, Voice
 from pymax.logging import get_logger
 from pymax.protocol import Opcode
 from pymax.types import AttachmentType, AudioUploadSignal
@@ -313,11 +314,14 @@ class UploadService:
             self.voice_upload_waiters.pop(video_id, None)
             logger.debug("Voice upload waiter removed voice_id=%s", video_id)
 
-    async def upload_video(self, video: Video) -> VideoAttachPayload:
+    async def upload_video(self, uploadable_video: Video | VideoNote) -> VideoAttachPayload:
         logger.info("Uploading video")
         logger.debug("Preparing video upload payload")
 
-        payload = UploadPayload().to_payload()
+        if isinstance(uploadable_video, VideoNote):
+            payload = UploadPayload(type=1, uploader_type=1).to_payload()
+        else:
+            payload = UploadPayload().to_payload()
 
         try:
             data = await self.app.invoke(
@@ -351,7 +355,7 @@ class UploadService:
             raise UploadError("Failed to get video upload info") from e
 
         try:
-            file_size = await video.size()
+            file_size = await uploadable_video.size()
         except Exception as e:
             logger.exception("Failed to get video size")
             raise UploadError("Failed to get video size") from e
@@ -365,8 +369,8 @@ class UploadService:
         timeout = aiohttp.ClientTimeout(total=900, sock_read=60)
 
         headers = {
-            "Content-Disposition": f"attachment; filename={quote(video.name)}",
-            "Content-Range": f"0-{file_size - 1}/{file_size}",
+            "Content-Disposition": f"attachment; filename={quote(uploadable_video.name)}",
+            "Content-Range": f"bytes 0-{file_size - 1}/{file_size}",
             "Content-Length": str(file_size),
             "Connection": "keep-alive",
         }
@@ -394,7 +398,7 @@ class UploadService:
                 async with session.post(
                     url=upload_info.url,
                     headers=headers,
-                    data=video.iter_chunks(1024 * 1024),
+                    data=uploadable_video.iter_chunks(1024 * 1024),
                 ) as response:
                     logger.debug(
                         "Video upload HTTP response status=%s video_id=%s",
@@ -414,11 +418,27 @@ class UploadService:
                         )
 
                     try:
-                        logger.debug(
-                            "Waiting for video processing notification video_id=%s",
-                            video_id,
-                        )
-                        await asyncio.wait_for(future, 60)
+                        if isinstance(uploadable_video, VideoNote):
+                            data = await response.json(content_type=None)
+
+                            thumbhash = data.get("thumbhash")
+                            if thumbhash:
+                                thumbhash += "=" * (-len(thumbhash) % 4)
+                                thumbhash = base64.b64decode(thumbhash)
+
+                            return VideoAttachPayload(
+                                video_id=video_id,
+                                token=token,
+                                video_type=1,
+                                thumbhash=thumbhash,
+                                duration=await uploadable_video.get_duration(),
+                            )
+                        else:
+                            logger.debug(
+                                "Waiting for video processing notification video_id=%s",
+                                video_id,
+                            )
+                            await asyncio.wait_for(future, 60)
                     except asyncio.TimeoutError:
                         logger.warning(
                             "Timed out waiting for video processing notification video_id=%s",
@@ -429,6 +449,7 @@ class UploadService:
                         )
 
                     logger.debug("Video upload complete video_id=%s", video_id)
+
                     return VideoAttachPayload(video_id=video_id, token=token)
 
         except UploadError:
