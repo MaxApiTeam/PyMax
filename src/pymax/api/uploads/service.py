@@ -379,15 +379,16 @@ class UploadService:
             "Video upload headers prepared content_range=%s",
             headers["Content-Range"],
         )
-
-        loop = asyncio.get_running_loop()
-        future: asyncio.Future[VideoUploadSignal] = loop.create_future()
-
-        video_id = upload_info.video_id
         token = upload_info.token
+        video_id = upload_info.video_id
 
-        self.video_upload_waiters[video_id] = future
-        logger.debug("Video upload waiter registered video_id=%s", video_id)
+        future = None
+        if not isinstance(uploadable_video, VideoNote):
+            loop = asyncio.get_running_loop()
+            future = loop.create_future()
+            self.video_upload_waiters[video_id] = future
+
+            logger.debug("Video upload waiter registered video_id=%s", video_id)
 
         try:
             async with aiohttp.ClientSession(
@@ -434,6 +435,12 @@ class UploadService:
                                 duration=await uploadable_video.get_duration(),
                             )
                         else:
+                            if future is None:
+                                raise ValueError(
+                                    "Unexpected internal state: "
+                                    + "future is missing in UplpadService.upload_video."
+                                    + f" video type = {type(uploadable_video)}"
+                                )
                             logger.debug(
                                 "Waiting for video processing notification video_id=%s",
                                 video_id,
