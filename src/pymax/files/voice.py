@@ -4,8 +4,13 @@ from pathlib import Path
 from .base import BaseFile
 
 
-# TODO: add docs. can be only ogg
 class Voice(BaseFile):
+    """Голосовое сообщение в формате OGG для отправки.
+
+    Принимает ``path``, ``url`` или ``raw``. Для ``raw`` необходимо явно
+    передать имя файла.
+    """
+
     def __init__(
         self,
         raw: bytes | None = None,

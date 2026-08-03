@@ -165,16 +165,15 @@ class Chat(CamelModel):
         """Отправляет сообщение в этот чат.
 
         :param text: Текст сообщения.
-        :type text: str
+        :type text: str | None
         :param reply_to: ID сообщения для ответа.
         :type reply_to: int | None
         :param attachments: Файлы, фотографии или видео для отправки.
         :type attachments: SendAttachments
         :param notify: Отправить ли получателям push-уведомление.
         :type notify: bool
-        :returns: Отправленное сообщение или ``None``, если сервер не вернул
-            его.
-        :rtype: Message | None
+        :returns: Отправленное сообщение.
+        :rtype: Message
         :raises RuntimeError: Если чат не привязан к клиенту.
         """
         actions, _ = self._bound()
@@ -224,8 +223,9 @@ class Chat(CamelModel):
         :type get_messages: bool
         :param interactive: Пометить запрос как интерактивный.
         :type interactive: bool
-        :returns: Сообщения или ``None``, если сервер не вернул список.
-        :rtype: list[Message] | None
+        :returns: Список сообщений. Если сервер не вернул сообщения, список
+            пуст.
+        :rtype: list[Message]
         :raises RuntimeError: Если чат не привязан к клиенту.
         """
         actions, _ = self._bound()

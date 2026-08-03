@@ -4,7 +4,7 @@ Files
 Что это
 -------
 
-Для отправки вложений PyMax использует три класса:
+Для отправки вложений PyMax использует пять основных классов:
 
 ``Photo``
    Фото. Проверяет расширение и MIME-тип.
@@ -15,6 +15,13 @@ Files
 ``File``
    Обычный файл. Тоже загружается чанками и ждет событие готовности.
 
+``Voice``
+   Голосовое сообщение в формате OGG.
+
+``VideoNote``
+   Круглое видеосообщение. Можно передать длительность вручную или установить
+   extra ``video`` для автоматического определения.
+
 Как отправить файл
 ------------------
 
@@ -22,7 +29,7 @@ Files
 
    import asyncio
 
-   from pymax import Client, File, Photo, Video
+   from pymax import Client, File, Photo, Video, VideoNote, Voice
 
    client = Client(phone="+79990000000", work_dir="cache")
 
@@ -46,6 +53,11 @@ Files
            attachments=[Video(path="clip.mp4")],
        )
 
+       await chat.answer(attachments=[Voice(path="voice.ogg")])
+       await chat.answer(
+           attachments=[VideoNote(path="circle.mp4", duration=4200)]
+       )
+
 
    asyncio.run(client.start())
 
@@ -59,9 +71,19 @@ Files
    Photo(path="image.jpg")
    File(url="https://example.com/report.pdf")
    Video(raw=b"...", name="clip.mp4")
+   Voice(path="voice.ogg")
+   VideoNote(path="circle.mp4", duration=4200)
 
-Для ``raw`` обязательно указывайте ``name``. Для ``File`` и ``Video`` имя
-берется из ``path`` или ``url``, если не передано явно.
+Для ``raw`` обязательно указывайте ``name``. Для ``File``, ``Video``,
+``Voice`` и ``VideoNote`` имя берется из ``path`` или ``url``, если не
+передано явно.
+
+Если длительность ``VideoNote`` не передана, установите дополнительную
+зависимость:
+
+.. code-block:: console
+
+   uv add "maxapi-python[video]"
 
 Как работает upload
 -------------------
@@ -69,7 +91,8 @@ Files
 1. PyMax запрашивает у Max временный upload URL.
 2. Читает файл из ``path``, ``url`` или ``raw``.
 3. Загружает данные HTTP-запросом.
-4. Для ``File`` и ``Video`` ждет служебное событие готовности до 60 секунд.
+4. Для ``File``, ``Video``, ``Voice`` и ``VideoNote`` ждет служебное событие
+   готовности до 60 секунд.
 5. Подставляет token/file_id/video_id в отправляемое сообщение.
 
 Фото проходит проще: после HTTP-upload PyMax сразу достает token из ответа.
@@ -115,3 +138,7 @@ Files
    Upload-сервис не получил нужный ответ от Max. Включите ``DEBUG``-логи:
    часто причина в недоступном URL, неверном размере файла, timeout или в том,
    что событие готовности файла не пришло за 60 секунд.
+
+``Automatic video duration detection requires the 'video' extra``
+   Передайте ``duration`` в миллисекундах или установите
+   ``maxapi-python[video]``.

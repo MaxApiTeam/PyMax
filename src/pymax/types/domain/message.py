@@ -193,14 +193,13 @@ class Message(CamelModel):
         """Отправляет ответ на это сообщение в тот же чат.
 
         :param text: Текст сообщения.
-        :type text: str
+        :type text: str | None
         :param attachments: Файлы, фотографии или видео для отправки.
         :type attachments: SendAttachments
         :param notify: Отправить ли получателям push-уведомление.
         :type notify: bool
-        :returns: Отправленное сообщение или ``None``, если сервер не вернул
-            его.
-        :rtype: Message | None
+        :returns: Отправленное сообщение.
+        :rtype: Message
         :raises RuntimeError: Если сообщение не привязано к сервису или не
             содержит ``chat_id``.
         """
@@ -225,16 +224,15 @@ class Message(CamelModel):
         """Отправляет сообщение в тот же чат.
 
         :param text: Текст сообщения.
-        :type text: str
+        :type text: str | None
         :param reply_to: ID сообщения для ответа.
         :type reply_to: int | None
         :param attachments: Файлы, фотографии или видео для отправки.
         :type attachments: SendAttachments
         :param notify: Отправить ли получателям push-уведомление.
         :type notify: bool
-        :returns: Отправленное сообщение или ``None``, если сервер не вернул
-            его.
-        :rtype: Message | None
+        :returns: Отправленное сообщение.
+        :rtype: Message
         :raises RuntimeError: Если сообщение не привязано к сервису или не
             содержит ``chat_id``.
         """
@@ -260,8 +258,8 @@ class Message(CamelModel):
         :type chat_id: int
         :param notify: Отправить ли получателям push-уведомление.
         :type notify: bool
-        :returns: Пересланное сообщение или ``None``, если сервер его не вернул.
-        :rtype: Message | None
+        :returns: Пересланное сообщение.
+        :rtype: Message
         :raises RuntimeError: Если сообщение не привязано к сервису или не
             содержит ``chat_id``.
         """

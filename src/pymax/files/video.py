@@ -80,8 +80,14 @@ class Video(BaseFile):
         return super().iter_chunks(size)
 
 
-# TODO: add docs
 class VideoNote(Video):
+    """Круглое видеосообщение для отправки.
+
+    Принимает те же источники, что и ``Video``. Длительность задается в
+    миллисекундах. Если она не передана, требуется extra ``video`` для
+    автоматического определения длительности.
+    """
+
     def __init__(
         self,
         raw: bytes | None = None,

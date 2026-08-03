@@ -34,7 +34,7 @@ class MessageMixin(IClientProtocol):
             notify: Отправить ли получателям push-уведомление.
 
         Returns:
-            Отправленное сообщение или ``None``, если сервер не вернул его.
+            Отправленное сообщение.
 
         Raises:
             ValueError: Если не переданы ни текст, ни вложения.
@@ -84,7 +84,7 @@ class MessageMixin(IClientProtocol):
             notify: Отправить ли получателям push-уведомление.
 
         Returns:
-            Пересланное сообщение или ``None``, если сервер не вернул его.
+            Пересланное сообщение.
         """
         return await self._app.api.messages.forward_message(
             chat_id=chat_id,
@@ -166,7 +166,7 @@ class MessageMixin(IClientProtocol):
             interactive: Пометить запрос как интерактивный.
 
         Returns:
-            Сообщения или ``None``, если сервер не вернул список.
+            Список сообщений. Если сервер не вернул сообщения, список пуст.
         """
         return await self._app.api.messages.fetch_history(
             chat_id=chat_id,
@@ -356,6 +356,17 @@ class MessageMixin(IClientProtocol):
         poll_id: int,
         answer_ids: list[int],
     ) -> PollState:
+        """Отправляет выбранные ответы в опросе.
+
+        Args:
+            chat_id: ID чата с опросом.
+            message_id: ID сообщения с опросом.
+            poll_id: ID опроса из ``PollAttachment.poll_id``.
+            answer_ids: ID выбранных вариантов ответа.
+
+        Returns:
+            Обновленное состояние опроса.
+        """
         return await self._app.api.messages.vote_poll(
             chat_id=chat_id,
             message_id=message_id,

@@ -83,6 +83,57 @@ Messages
        source_chat_id=123456,
    )
 
+Опросы
+------
+
+Опрос можно отправить без текста. Настройки объединяются оператором ``|``:
+
+.. code-block:: python
+
+   from pymax.types import Poll, PollAnswer, PollFlags
+
+   await client.send_message(
+       chat_id=123456,
+       attachments=[
+           Poll(
+               title="Какой вариант выбрать?",
+               answers=[
+                   PollAnswer(text="Первый"),
+                   PollAnswer(text="Второй"),
+               ],
+               settings=(
+                   PollFlags.FLAG_SETTINGS_ANONYMOUS
+                   | PollFlags.FLAG_SETTINGS_REVOTE
+               ),
+           )
+       ],
+   )
+
+Для голосования нужны ID сообщения, опроса и вариантов из входящего
+``PollAttachment``:
+
+.. code-block:: python
+
+   from pymax import Message
+   from pymax.types import PollAttachment
+
+   @client.on_message()
+   async def vote(message: Message, client: Client) -> None:
+       if message.chat_id is None:
+           return
+
+       for attach in message.attaches:
+           if isinstance(attach, PollAttachment):
+               answer_id = attach.answers[0].answer_id
+               if answer_id is not None:
+                   state = await client.vote_poll(
+                       chat_id=message.chat_id,
+                       message_id=message.id,
+                       poll_id=attach.poll_id,
+                       answer_ids=[answer_id],
+                   )
+                   print(state.total)
+
 Ответ, реакции, удаление и прочтение
 ----------------------------------------
 
@@ -147,7 +198,7 @@ Messages
 .. code-block:: python
 
    history = await client.fetch_history(chat_id=123456, backward=50)
-   for message in history or []:
+   for message in history:
        print(message.id, message.text)
 
 ``fetch_history()`` принимает ``item_type``. По умолчанию используются обычные
@@ -178,8 +229,8 @@ Max присылает разные формы событий. Некоторы�
 --------
 
 Входящие вложения лежат в ``message.attaches``. Тип вложения определяется по
-полю ``type``: фото, видео, файл, стикер, аудио, контакт, звонок, share или
-inline-клавиатура.
+полю ``type``: фото, видео, файл, стикер, аудио, опрос, контакт, звонок, share
+или inline-клавиатура.
 
 .. code-block:: python
 

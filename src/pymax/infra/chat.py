@@ -402,16 +402,11 @@ class ChatMixin(IClientProtocol):
         user_id: int,
         permissions: list[ChannelPermissions],
     ) -> None:
-        """
-        Добавляет админа в канал
+        """Назначает пользователя администратором канала.
 
         Args:
-            chat_id: id чата
-            user_id: Айди юзера
-            permissions: Список разрешений для юзера
-
-        Returns:
-            None
-
+            chat_id: ID канала.
+            user_id: ID пользователя.
+            permissions: Непустой список прав администратора.
         """
         return await self._app.api.chats.add_admin(chat_id, user_id, permissions)
