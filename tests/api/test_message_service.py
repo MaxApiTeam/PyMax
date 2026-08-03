@@ -298,7 +298,12 @@ async def test_edit_message_uploads_single_and_multiple_attachments() -> None:
     assert app.calls[0].payload["attachments"] == [{"_type": "PHOTO", "photoToken": "photo-token"}]
     assert app.calls[1].payload["attachments"] == [
         {"_type": "FILE", "fileId": 30},
-        {"_type": "VIDEO", "videoId": 20, "token": "video-token"},
+        {
+            "_type": "VIDEO",
+            "videoId": 20,
+            "token": "video-token",
+            "videoType": 0,
+        },
     ]
 
 

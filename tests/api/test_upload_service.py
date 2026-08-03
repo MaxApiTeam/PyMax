@@ -140,7 +140,7 @@ async def test_upload_video_posts_chunks_waits_for_processing_and_cleans_waiter(
     assert result.video_id == 10
     assert result.token == "video-token"
     assert service.video_upload_waiters == {}
-    assert FakeHttpSession.posts[0]["headers"]["Content-Range"] == "0-4/5"
+    assert FakeHttpSession.posts[0]["headers"]["Content-Range"] == "bytes 0-4/5"
     assert FakeHttpSession.posts[0]["url"] == "https://upload.test/video"
 
 
