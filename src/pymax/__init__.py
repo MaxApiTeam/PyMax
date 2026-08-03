@@ -17,7 +17,7 @@ from .client_web import WebClient
 from .config import ExtraConfig, RegistrationConfig
 from .dispatch import EventType, Router
 from .exceptions import ApiError, PyMaxError, UploadError
-from .files import File, Photo, Video, Voice
+from .files import File, Photo, Video, VideoNote, Voice
 from .logging import configure_logging
 from .routers import ClientRouter, WebRouter
 from .types import (
@@ -66,6 +66,7 @@ __all__ = (
     "UploadError",
     "User",
     "Video",
+    "VideoNote",
     "Voice",
     "WebClient",
     "WebRouter",

@@ -156,12 +156,12 @@ class Chat(CamelModel):
 
     async def answer(
         self,
-        text: str,
+        text: str | None = None,
         reply_to: int | None = None,
         attachments: SendAttachments = None,
         *,
         notify: bool = True,
-    ) -> Message | None:
+    ) -> Message:
         """Отправляет сообщение в этот чат.
 
         :param text: Текст сообщения.
@@ -198,7 +198,7 @@ class Chat(CamelModel):
         get_chat: bool = False,
         get_messages: bool = True,
         interactive: bool = False,
-    ) -> list[Message] | None:
+    ) -> list[Message]:
         """Загружает историю сообщений этого чата.
 
         ``from_time``, ``backward_time`` и ``forward_time`` передаются в

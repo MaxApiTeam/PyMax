@@ -185,11 +185,11 @@ class Message(CamelModel):
 
     async def reply(
         self,
-        text: str,
+        text: str | None = None,
         attachments: SendAttachments = None,
         *,
         notify: bool = True,
-    ) -> Message | None:
+    ) -> Message:
         """Отправляет ответ на это сообщение в тот же чат.
 
         :param text: Текст сообщения.
@@ -216,12 +216,12 @@ class Message(CamelModel):
 
     async def answer(
         self,
-        text: str,
+        text: str | None = None,
         reply_to: int | None = None,
         attachments: SendAttachments = None,
         *,
         notify: bool = True,
-    ) -> Message | None:
+    ) -> Message:
         """Отправляет сообщение в тот же чат.
 
         :param text: Текст сообщения.
@@ -253,7 +253,7 @@ class Message(CamelModel):
         chat_id: int,
         *,
         notify: bool = True,
-    ) -> Message | None:
+    ) -> Message:
         """Пересылает это сообщение в другой чат.
 
         :param chat_id: ID целевого чата.

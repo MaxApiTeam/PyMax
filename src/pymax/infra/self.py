@@ -1,5 +1,6 @@
 from typing import Any
 
+from pymax.files import Photo
 from pymax.types import FolderList, FolderUpdate
 
 from .protocol import IClientProtocol
@@ -19,7 +20,7 @@ class SelfMixin(IClientProtocol):
         first_name: str,
         last_name: str | None = None,
         description: str | None = None,
-        photo: Any | None = None,
+        photo: Photo | None = None,
         *,
         photo_token: str | None = None,
     ) -> bool:

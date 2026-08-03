@@ -22,7 +22,7 @@ class MessageMixin(IClientProtocol):
         attachments: SendAttachments = None,
         *,
         notify: bool = True,
-    ) -> Message | None:
+    ) -> Message:
         """Отправляет сообщение в чат.
 
         Args:
@@ -72,7 +72,7 @@ class MessageMixin(IClientProtocol):
         source_chat_id: int | None = None,
         *,
         notify: bool = True,
-    ) -> Message | None:
+    ) -> Message:
         """Пересылает существующее сообщение в чат.
 
         Args:
@@ -115,7 +115,7 @@ class MessageMixin(IClientProtocol):
         self,
         chat_id: int,
         message_id: int,
-        text: str,
+        text: str | None = None,
         attachments: SendAttachments = None,
     ) -> Message:
         """Редактирует текст и вложения сообщения.
@@ -148,7 +148,7 @@ class MessageMixin(IClientProtocol):
         get_chat: bool = False,
         get_messages: bool = True,
         interactive: bool = False,
-    ) -> list[Message] | None:
+    ) -> list[Message]:
         """Загружает историю сообщений чата.
 
         Args:

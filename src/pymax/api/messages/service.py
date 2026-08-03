@@ -128,7 +128,7 @@ class MessageService:
         attachments: SendAttachments = None,
         *,
         notify: bool = True,
-    ) -> Message | None:
+    ) -> Message:
         logger.info("sending message chat_id=%s text_len=%s", chat_id, len(text) if text else 0)
 
         if not text and not attachments:
@@ -168,7 +168,7 @@ class MessageService:
         source_chat_id: int | None = None,
         *,
         notify: bool = True,
-    ) -> Message | None:
+    ) -> Message:
         source_chat_id = chat_id if source_chat_id is None else source_chat_id
         logger.info(
             "forwarding message source_chat_id=%s chat_id=%s message_id=%s",
@@ -270,7 +270,7 @@ class MessageService:
         get_chat: bool = False,
         get_messages: bool = True,
         interactive: bool = False,
-    ) -> list[Message] | None:
+    ) -> list[Message]:
         frame = ChatHistoryPayload(
             chat_id=chat_id,
             forward=forward,
@@ -292,7 +292,7 @@ class MessageService:
             self.app,
             parse_payload_list(response, MessagePayloadKey.MESSAGES, Message),
         )
-        return messages or None
+        return messages
 
     async def delete_message(
         self,
