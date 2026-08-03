@@ -112,6 +112,7 @@ API reference
    control_attachment
    file_attachment
    photo_attachment
+   poll
    poll_attachment
    share_attachment
    sticker_attachment
