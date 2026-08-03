@@ -391,6 +391,74 @@ async def test_client_start_does_not_emit_on_start_after_handled_login_error(
     assert store.closed is True
 
 
+@pytest.mark.parametrize(
+    ("error", "message"),
+    [
+        ("FAIL_LOGIN_TOKEN", "Token expired"),
+        ("login_failed", "FAIL_LOGIN_TOKEN"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_client_start_reauthenticates_after_login_token_revocation(
+    monkeypatch: pytest.MonkeyPatch,
+    error: str,
+    message: str,
+) -> None:
+    async def idle_ping_loop(self):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(App, "_ping_loop", idle_ping_loop)
+    old_session = SessionInfo(token="revoked-token", device_id="dev", phone="+7")
+    store = RuntimeStore(old_session)
+    config = make_config().model_copy(update={"token": "revoked-token", "store": store})
+    connection = RuntimeConnection(
+        [
+            frame({"callsSeed": 123}),
+            InboundFrame(
+                opcode=Opcode.LOGIN,
+                cmd=Command.ERROR,
+                seq=1,
+                payload={
+                    "error": error,
+                    "title": "Login failed",
+                    "message": message,
+                    "localizedMessage": "Session expired",
+                },
+            ),
+            frame({"callsSeed": 456}),
+            frame(
+                {
+                    "profile": profile_payload(77),
+                    "token": "new-login-token",
+                    "contacts": [profile_payload(77)["contact"]],
+                    "chats": [],
+                    "messages": {},
+                }
+            ),
+        ]
+    )
+    root_router: Router[RuntimeClient] = Router()
+    app: App[RuntimeClient] = App(connection, config, StaticAuthFlow(), root_router)
+    client = RuntimeClient(app, root_router)
+    app.dispatcher.bind_client(client)
+    errors: list[Exception] = []
+
+    @root_router.on_error()
+    async def on_error(exc, ctx):
+        errors.append(exc)
+
+    await client.start()
+
+    assert errors == []
+    assert store.deleted == ["revoked-token"]
+    assert store.saved[0].token == "auth-token"
+    assert store.loaded is not None
+    assert store.loaded.token == "new-login-token"
+    assert client.extra_config.token is None
+    assert client._config.token is None
+    assert client.me is not None
+
+
 @pytest.mark.asyncio
 async def test_client_start_emits_disconnect_before_reraising_without_reconnect(
     monkeypatch: pytest.MonkeyPatch,

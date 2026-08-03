@@ -152,6 +152,9 @@ class App(Generic[ClientT]):
                 logger.error("Unexpected internal state: login response does not contain profile")
                 raise RuntimeError("Login response does not contain profile")
         except Exception as e:
+            if self._is_invalid_login_token_error(e):
+                raise
+
             handled = False
             if self.dispatcher.client is not None:
                 handled = await self.dispatcher.emit_error(
@@ -194,6 +197,16 @@ class App(Generic[ClientT]):
 
         if self._telemetry:
             self._telemetry.start()
+
+    @staticmethod
+    def _is_invalid_login_token_error(exc: Exception) -> bool:
+        return (
+            isinstance(exc, ApiError)
+            and exc.opcode == Opcode.LOGIN
+            and any(
+                err in (exc.error, exc.message) for err in ("FAIL_LOGIN_TOKEN", "FAIL_LOGOUT_ALL")
+            )
+        )
 
     async def login(self) -> tuple[LoginResponse, Login2Response | None]:
         login_response = await self.api.auth.login(

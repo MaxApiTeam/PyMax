@@ -7,6 +7,7 @@ from pymax.logging import get_logger
 from .base import Transport
 
 logger = get_logger(__name__)
+_CLOSE_TIMEOUT = 5.0
 
 
 class TCPTransport(Transport):
@@ -66,7 +67,11 @@ class TCPTransport(Transport):
         if writer:
             logger.debug("tcp close")
             writer.close()
-            await writer.wait_closed()
+            try:
+                await asyncio.wait_for(writer.wait_closed(), _CLOSE_TIMEOUT)
+            except (OSError, TimeoutError) as e:
+                logger.warning("tcp close did not finish cleanly: %s", e)
+                writer.transport.abort()
             logger.debug("tcp closed")
 
     async def send(self, data: bytes | str) -> None:
