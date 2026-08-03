@@ -60,6 +60,12 @@ class QueueReader:
         return item
 
 
+class BlockingReader:
+    async def read(self) -> bytes:
+        await asyncio.Event().wait()
+        raise AssertionError("unreachable")
+
+
 @pytest.mark.asyncio
 async def test_pending_requests_resolve_reject_discard_and_cancel() -> None:
     pending = PendingRequests()
@@ -183,6 +189,43 @@ async def test_connection_open_recv_loop_dispatches_events_and_closes() -> None:
     await manager.close()
     assert transport.closed is True
     assert [event.opcode for event in events] == [42]
+
+
+@pytest.mark.asyncio
+async def test_connection_wait_closed_returns_after_explicit_close() -> None:
+    manager = ConnectionManager(
+        reader=BlockingReader(),
+        transport=FakeTransport(),
+        protocol=FakeProtocol(),
+    )
+
+    await manager.open()
+    waiter = asyncio.create_task(manager.wait_closed())
+    await asyncio.sleep(0)
+
+    await manager.close()
+    await waiter
+
+    assert manager.is_open is False
+
+
+@pytest.mark.asyncio
+async def test_connection_wait_closed_propagates_external_cancellation() -> None:
+    manager = ConnectionManager(
+        reader=BlockingReader(),
+        transport=FakeTransport(),
+        protocol=FakeProtocol(),
+    )
+
+    await manager.open()
+    waiter = asyncio.create_task(manager.wait_closed())
+    await asyncio.sleep(0)
+    waiter.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await waiter
+
+    await manager.close()
 
 
 @pytest.mark.asyncio
