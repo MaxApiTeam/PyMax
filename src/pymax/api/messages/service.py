@@ -26,6 +26,7 @@ from pymax.types.domain import (
     FileRequest,
     Message,
     Poll,
+    PollState,
     ReactionInfo,
     ReadState,
     VideoRequest,
@@ -51,6 +52,7 @@ from .payloads import (
     ReplyLink,
     SendMessagePayload,
     SendMessagePayloadMessage,
+    VotePollPayload,
 )
 
 if TYPE_CHECKING:
@@ -470,3 +472,17 @@ class MessageService:
 
         response = await self.app.invoke(Opcode.CHAT_MARK, frame.to_payload())
         return require_payload_model(response, ReadState)
+
+    async def vote_poll(
+        self,
+        chat_id: int,
+        message_id: int,
+        poll_id: int,
+        answer_ids: list[int],
+    ) -> PollState:
+        frame = VotePollPayload(
+            chat_id=chat_id, message_id=message_id, poll_id=poll_id, answers_ids=answer_ids
+        )
+        response = await self.app.invoke(Opcode.SEND_VOTE, frame.to_payload())
+
+        return require_payload_item_model(response, "state", PollState)

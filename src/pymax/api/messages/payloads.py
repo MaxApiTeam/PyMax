@@ -130,3 +130,10 @@ class ReadMessagesPayload(CamelModel):
     chat_id: int
     message_id: str | int  # Сокет просит int а вс str
     mark: int
+
+
+class VotePollPayload(CamelModel):
+    chat_id: int
+    message_id: int
+    poll_id: int
+    answers_ids: list[int]

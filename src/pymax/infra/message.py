@@ -3,6 +3,7 @@ from pymax.api.messages.service import SendAttachments
 from pymax.types import (
     FileRequest,
     Message,
+    PollState,
     ReactionInfo,
     ReadState,
     VideoRequest,
@@ -346,4 +347,18 @@ class MessageMixin(IClientProtocol):
         return await self._app.api.messages.read_message(
             message_id=message_id,
             chat_id=chat_id,
+        )
+
+    async def vote_poll(
+        self,
+        chat_id: int,
+        message_id: int,
+        poll_id: int,
+        answer_ids: list[int],
+    ) -> PollState:
+        return await self._app.api.messages.vote_poll(
+            chat_id=chat_id,
+            message_id=message_id,
+            poll_id=poll_id,
+            answer_ids=answer_ids,
         )

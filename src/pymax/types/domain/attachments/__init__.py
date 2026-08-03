@@ -6,7 +6,7 @@ from .enums import AttachmentType, PollFlags
 from .file import FileAttachment, FileRequest
 from .keyboards import InlineKeyboardAttachment
 from .photo import PhotoAttachment
-from .poll import Poll, PollAnswer, PollAttachment
+from .poll import Poll, PollAnswer, PollAttachment, PollState
 from .share import ShareAttachment
 from .sticker import StickerAttachment
 from .unknown import UnknownAttachment

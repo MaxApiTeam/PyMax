@@ -373,6 +373,35 @@ async def test_reaction_methods_parse_optional_reaction_info() -> None:
 
 
 @pytest.mark.asyncio
+async def test_vote_poll_builds_payload_and_parses_state() -> None:
+    app = FakeApp(
+        [
+            frame(
+                {
+                    "state": {
+                        "total": 1,
+                        "result": None,
+                        "voterPreviewIds": [77],
+                    }
+                }
+            )
+        ]
+    )
+
+    state = await app.api.messages.vote_poll(100, 10, 42, [3])
+
+    assert state.total == 1
+    assert state.voter_preview_ids == [77]
+    assert app.calls[0].opcode == Opcode.SEND_VOTE
+    assert app.calls[0].payload == {
+        "chatId": 100,
+        "messageId": 10,
+        "pollId": 42,
+        "answersIds": [3],
+    }
+
+
+@pytest.mark.asyncio
 async def test_get_video_and_file_by_id_parse_request_models() -> None:
     app = FakeApp(
         [
