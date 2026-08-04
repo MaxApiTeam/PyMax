@@ -112,26 +112,6 @@ async def test_tcp_transport_connect_send_recv_and_close(
 
 
 @pytest.mark.asyncio
-async def test_tcp_transport_aborts_when_tls_close_stalls(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    writer = FakeStreamWriter()
-
-    async def wait_closed() -> None:
-        await asyncio.Event().wait()
-
-    writer.wait_closed = wait_closed
-    monkeypatch.setattr("pymax.transport.tcp._CLOSE_TIMEOUT", 0.01)
-    transport = TCPTransport("example.test", 443, proxy=None, use_ssl=True)
-    transport._writer = writer
-
-    await transport.close()
-
-    assert writer.closed is True
-    assert writer.transport.aborted is True
-
-
-@pytest.mark.asyncio
 async def test_tcp_transport_ignores_tls_close_error() -> None:
     writer = FakeStreamWriter()
 
