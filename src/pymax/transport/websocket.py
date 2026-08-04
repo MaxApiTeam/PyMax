@@ -24,7 +24,7 @@ class WebSocketTransport(Transport):
             )
         else:
             self.ws = await client.connect(
-                self.url, origin=Origin("https://web.max.ru")
+                self.url, origin=Origin("https://web.max.ru"), max_size=1024 * 1024 * 10
             )  # TODO: origin should be configurable
 
     async def close(self) -> None:

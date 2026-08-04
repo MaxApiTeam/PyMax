@@ -438,7 +438,7 @@ class UploadService:
                             if future is None:
                                 raise ValueError(
                                     "Unexpected internal state: "
-                                    + "future is missing in UplpadService.upload_video."
+                                    + "future is missing in UploadService.upload_video."
                                     + f" video type = {type(uploadable_video)}"
                                 )
                             logger.debug(

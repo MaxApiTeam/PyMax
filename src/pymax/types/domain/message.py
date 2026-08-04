@@ -292,13 +292,13 @@ class Message(CamelModel):
 
     async def edit(
         self,
-        text: str,
+        text: str | None = None,
         attachments: SendAttachments = None,
     ) -> Message:
         """Редактирует текст и вложения этого сообщения.
 
         :param text: Новый текст сообщения с поддержкой markdown.
-        :type text: str
+        :type text: str | None
         :param attachments: Новые файлы, фотографии или видео для сообщения.
         :type attachments: SendAttachments
         :returns: Отредактированное сообщение.
