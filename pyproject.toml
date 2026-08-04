@@ -1,6 +1,6 @@
 [project]
 name = "maxapi-python"
-version = "2.3.1"
+version = "2.4.0"
 description = "Python wrapper для API мессенджера Max"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -82,6 +82,11 @@ dev = [
   "twine>=5.0.0",
   "pyright>=1.1.390",
   "ruff>=0.8.0",
+]
+
+[project.optional-dependencies]
+video = [
+  "tinytag>=2.2.1",
 ]
 
 [tool.uv]

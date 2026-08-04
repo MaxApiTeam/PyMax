@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from pymax.dispatch import ErrorScope, Router
 from pymax.dispatch.router import DisconnectDecorator, ErrorDecorator
+from pymax.exceptions import ApiError
 from pymax.infra import BaseMixin
 from pymax.logging import get_logger
 
@@ -138,6 +139,13 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
             except asyncio.CancelledError:
                 await self.close()
                 raise
+            except ApiError as e:
+                if not self._app._is_invalid_login_token_error(e):
+                    await self.close()
+                    raise
+
+                logger.warning("login token was revoked; starting authentication again")
+                await self.relogin(start=False)
             except (  # noqa: PERF203
                 ConnectionError,
                 EOFError,

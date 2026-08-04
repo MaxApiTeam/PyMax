@@ -1,4 +1,5 @@
 from .enums import (
+    ChannelPermissions,
     ChatLinkPrefix,
     ChatMemberOperation,
     ChatOption,

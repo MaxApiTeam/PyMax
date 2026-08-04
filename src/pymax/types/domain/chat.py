@@ -156,25 +156,24 @@ class Chat(CamelModel):
 
     async def answer(
         self,
-        text: str,
+        text: str | None = None,
         reply_to: int | None = None,
         attachments: SendAttachments = None,
         *,
         notify: bool = True,
-    ) -> Message | None:
+    ) -> Message:
         """Отправляет сообщение в этот чат.
 
         :param text: Текст сообщения.
-        :type text: str
+        :type text: str | None
         :param reply_to: ID сообщения для ответа.
         :type reply_to: int | None
         :param attachments: Файлы, фотографии или видео для отправки.
         :type attachments: SendAttachments
         :param notify: Отправить ли получателям push-уведомление.
         :type notify: bool
-        :returns: Отправленное сообщение или ``None``, если сервер не вернул
-            его.
-        :rtype: Message | None
+        :returns: Отправленное сообщение.
+        :rtype: Message
         :raises RuntimeError: Если чат не привязан к клиенту.
         """
         actions, _ = self._bound()
@@ -198,7 +197,7 @@ class Chat(CamelModel):
         get_chat: bool = False,
         get_messages: bool = True,
         interactive: bool = False,
-    ) -> list[Message] | None:
+    ) -> list[Message]:
         """Загружает историю сообщений этого чата.
 
         ``from_time``, ``backward_time`` и ``forward_time`` передаются в
@@ -224,8 +223,9 @@ class Chat(CamelModel):
         :type get_messages: bool
         :param interactive: Пометить запрос как интерактивный.
         :type interactive: bool
-        :returns: Сообщения или ``None``, если сервер не вернул список.
-        :rtype: list[Message] | None
+        :returns: Список сообщений. Если сервер не вернул сообщения, список
+            пуст.
+        :rtype: list[Message]
         :raises RuntimeError: Если чат не привязан к клиенту.
         """
         actions, _ = self._bound()

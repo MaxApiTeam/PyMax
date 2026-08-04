@@ -3,6 +3,7 @@ from __future__ import annotations
 from pymax.types.domain import (
     AudioAttachment,
     Message,
+    PollAttachment,
     UnknownAttachment,
     VideoAttachment,
 )
@@ -86,6 +87,41 @@ def test_video_attachment_accepts_missing_duration() -> None:
     assert isinstance(attach, VideoAttachment)
     assert attach.duration is None
     assert attach.video_id == 42
+
+
+def test_poll_attachment_parses_vote_details() -> None:
+    payload = message_payload(1, 100)
+    payload["attaches"] = [
+        {
+            "_type": "POLL",
+            "title": "Question",
+            "answers": [{"text": "Answer", "answerId": 1}],
+            "settings": 0,
+            "pollId": 42,
+            "version": 1,
+            "state": {
+                "total": 1,
+                "result": [
+                    {
+                        "answerId": 1,
+                        "voteCount": 1,
+                        "votes": [{"timestamp": 123456, "userId": 77}],
+                        "rate": 100,
+                        "options": 0,
+                    }
+                ],
+                "voterPreviewIds": [77],
+            },
+        }
+    ]
+
+    message = Message.model_validate(payload)
+
+    attach = message.attaches[0]
+    assert isinstance(attach, PollAttachment)
+    assert attach.state.result is not None
+    assert attach.state.result[0].votes[0].user_id == 77
+    assert attach.state.result[0].votes[0].timestamp == 123456
 
 
 def test_message_elements_accept_missing_length_and_attribute_url() -> None:

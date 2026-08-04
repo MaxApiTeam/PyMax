@@ -18,13 +18,15 @@ from pymax.api.uploads.payloads import (
     VideoAttachPayload,
 )
 from pymax.exceptions import UploadError
-from pymax.files import File, Photo, Video
+from pymax.files import File, Photo, Video, VideoNote, Voice
 from pymax.formatting.markdown import Formatter
 from pymax.logging import get_logger
 from pymax.protocol import Opcode
 from pymax.types.domain import (
     FileRequest,
     Message,
+    Poll,
+    PollState,
     ReactionInfo,
     ReadState,
     VideoRequest,
@@ -50,12 +52,13 @@ from .payloads import (
     ReplyLink,
     SendMessagePayload,
     SendMessagePayloadMessage,
+    VotePollPayload,
 )
 
 if TYPE_CHECKING:
     from pymax.app import App
 
-SendAttachment: TypeAlias = Photo | File | Video
+SendAttachment: TypeAlias = Photo | File | Video | Poll | Voice | VideoNote
 SendAttachments: TypeAlias = Sequence[SendAttachment] | None
 
 logger = get_logger(__name__)
@@ -76,13 +79,21 @@ class MessageService:
 
     async def _upload_attachments(
         self, attachments: SendAttachments
-    ) -> list[AttachPhotoPayload | VideoAttachPayload | AttachFilePayload]:
-        result: list[AttachPhotoPayload | VideoAttachPayload | AttachFilePayload] = []
+    ) -> list[AttachPhotoPayload | VideoAttachPayload | AttachFilePayload | Poll]:
+        result: list[AttachPhotoPayload | VideoAttachPayload | AttachFilePayload | Poll] = []
         if not attachments:
             return result
 
         for attachment in attachments:
-            if isinstance(attachment, Photo):
+            if isinstance(attachment, Voice):
+                upload_result = await self.app.api.uploads.upload_voice(attachment)
+                if not upload_result:
+                    logger.error("Voice uploading failed")
+                    raise UploadError("Voice uploading failed")
+
+                result.append(upload_result)
+
+            elif isinstance(attachment, Photo):
                 upload_result = await self.app.api.uploads.upload_photo(attachment)
                 if not upload_result:
                     logger.error("Photo uploading failed")
@@ -106,20 +117,30 @@ class MessageService:
 
                 result.append(upload_result)
 
+            elif isinstance(attachment, Poll):
+                result.append(attachment)
+
         return result
 
     async def send_message(
         self,
         chat_id: int,
-        text: str,
+        text: str | None = None,
         reply_to: int | None = None,
         attachments: SendAttachments = None,
         *,
         notify: bool = True,
-    ) -> Message | None:
-        logger.info("sending message chat_id=%s text_len=%s", chat_id, len(text))
+    ) -> Message:
+        logger.info("sending message chat_id=%s text_len=%s", chat_id, len(text) if text else 0)
 
-        clean_text, elements = Formatter.format_markdown(text)
+        if not text and not attachments:
+            logger.error("send_message failed: no text or attachments provided")
+            raise ValueError("Either text or attachments must be provided")
+
+        if text:
+            clean_text, elements = Formatter.format_markdown(text)
+        else:
+            clean_text, elements = None, []
 
         frame = SendMessagePayload(
             chat_id=chat_id,
@@ -149,7 +170,7 @@ class MessageService:
         source_chat_id: int | None = None,
         *,
         notify: bool = True,
-    ) -> Message | None:
+    ) -> Message:
         source_chat_id = chat_id if source_chat_id is None else source_chat_id
         logger.info(
             "forwarding message source_chat_id=%s chat_id=%s message_id=%s",
@@ -208,10 +229,18 @@ class MessageService:
         self,
         chat_id: int,
         message_id: int,
-        text: str,
+        text: str | None = None,
         attachments: SendAttachments = None,
     ) -> Message:
-        clean_text, elements = Formatter.format_markdown(text)
+        if not text and not attachments:
+            logger.error("edit_message failed: no text or attachments provided")
+            raise ValueError("Either text or attachments must be provided")
+
+        if text:
+            clean_text, elements = Formatter.format_markdown(text)
+        else:
+            clean_text, elements = None, []
+
         frame = EditMessagePayload(
             chat_id=chat_id,
             message_id=message_id,
@@ -243,7 +272,7 @@ class MessageService:
         get_chat: bool = False,
         get_messages: bool = True,
         interactive: bool = False,
-    ) -> list[Message] | None:
+    ) -> list[Message]:
         frame = ChatHistoryPayload(
             chat_id=chat_id,
             forward=forward,
@@ -265,7 +294,7 @@ class MessageService:
             self.app,
             parse_payload_list(response, MessagePayloadKey.MESSAGES, Message),
         )
-        return messages or None
+        return messages
 
     async def delete_message(
         self,
@@ -443,3 +472,17 @@ class MessageService:
 
         response = await self.app.invoke(Opcode.CHAT_MARK, frame.to_payload())
         return require_payload_model(response, ReadState)
+
+    async def vote_poll(
+        self,
+        chat_id: int,
+        message_id: int,
+        poll_id: int,
+        answer_ids: list[int],
+    ) -> PollState:
+        frame = VotePollPayload(
+            chat_id=chat_id, message_id=message_id, poll_id=poll_id, answers_ids=answer_ids
+        )
+        response = await self.app.invoke(Opcode.SEND_VOTE, frame.to_payload())
+
+        return require_payload_item_model(response, "state", PollState)

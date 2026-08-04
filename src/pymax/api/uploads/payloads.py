@@ -13,6 +13,10 @@ class VideoAttachPayload(CamelModel):
     type: AttachmentType = Field(default=AttachmentType.VIDEO, serialization_alias="_type")
     video_id: int
     token: str
+    video_type: int = 0
+    thumbhash: bytes | None = None
+    duration: int | None = None
+    wave: bytes | None = None
 
 
 class AttachFilePayload(CamelModel):
@@ -22,4 +26,6 @@ class AttachFilePayload(CamelModel):
 
 class UploadPayload(CamelModel):
     count: int = 1
+    type: int = 0
+    uploader_type: int = 0
     profile: bool = False

@@ -5,8 +5,9 @@ import pytest
 from pymax.api.messages.enums import ItemType, MessagePayloadKey
 from pymax.api.uploads.payloads import AttachPhotoPayload
 from pymax.exceptions import UploadError
-from pymax.files import File, Photo, Video
+from pymax.files import File, Photo, Video, Voice
 from pymax.protocol import Opcode
+from pymax.types.domain.attachments import VideoRequest
 from tests.conftest import FakeApp, frame, message_payload
 
 
@@ -103,10 +104,13 @@ async def test_upload_attachments_handles_file_video_and_empty_lists() -> None:
     app = FakeApp()
     assert await app.api.messages._upload_attachments(None) == []
 
-    result = await app.api.messages._upload_attachments([File(raw=b"abc", name="doc.txt")])
+    file = File(raw=b"abc", name="doc.txt")
+    voice = Voice(raw=b"voice", name="voice.ogg")
+    result = await app.api.messages._upload_attachments([file, voice])
 
     assert result[0].file_id == 30
-    assert app.api.uploads.calls[0][0] == "file"
+    assert result[1].type.value == "AUDIO"
+    assert app.api.uploads.calls == [("file", file), ("voice", voice)]
 
 
 @pytest.mark.asyncio
@@ -294,7 +298,12 @@ async def test_edit_message_uploads_single_and_multiple_attachments() -> None:
     assert app.calls[0].payload["attachments"] == [{"_type": "PHOTO", "photoToken": "photo-token"}]
     assert app.calls[1].payload["attachments"] == [
         {"_type": "FILE", "fileId": 30},
-        {"_type": "VIDEO", "videoId": 20, "token": "video-token"},
+        {
+            "_type": "VIDEO",
+            "videoId": 20,
+            "token": "video-token",
+            "videoType": 0,
+        },
     ]
 
 
@@ -369,10 +378,47 @@ async def test_reaction_methods_parse_optional_reaction_info() -> None:
 
 
 @pytest.mark.asyncio
+async def test_vote_poll_builds_payload_and_parses_state() -> None:
+    app = FakeApp(
+        [
+            frame(
+                {
+                    "state": {
+                        "total": 1,
+                        "result": None,
+                        "voterPreviewIds": [77],
+                    }
+                }
+            )
+        ]
+    )
+
+    state = await app.api.messages.vote_poll(100, 10, 42, [3])
+
+    assert state.total == 1
+    assert state.voter_preview_ids == [77]
+    assert app.calls[0].opcode == Opcode.SEND_VOTE
+    assert app.calls[0].payload == {
+        "chatId": 100,
+        "messageId": 10,
+        "pollId": 42,
+        "answersIds": [3],
+    }
+
+
+@pytest.mark.asyncio
 async def test_get_video_and_file_by_id_parse_request_models() -> None:
     app = FakeApp(
         [
-            frame({"cache": True, "dynamicUrl": "https://video.test"}),
+            frame(
+                {
+                    "cache": True,
+                    "FAILOVER_HOSTS": ["maxvd759.okcdn.ru"],
+                    "MP4_480": "https://video.test/480",
+                    "EXTERNAL": "https://m.ok.ru/video/1",
+                    "MP4_720": "https://video.test/720",
+                }
+            ),
             frame({"unsafe": False, "url": "https://file.test"}),
         ]
     )
@@ -381,7 +427,8 @@ async def test_get_video_and_file_by_id_parse_request_models() -> None:
     file = await app.api.messages.get_file_by_id(100, "10", 30)
 
     assert video is not None
-    assert video.url == "https://video.test"
+    assert video.url == "https://video.test/720"
+    assert video.external == "https://m.ok.ru/video/1"
     assert file is not None
     assert file.url == "https://file.test"
     assert [call.opcode for call in app.calls] == [
@@ -398,6 +445,17 @@ async def test_get_video_and_file_by_id_parse_request_models() -> None:
         "messageId": "10",
         "fileId": 30,
     }
+
+
+def test_video_request_supports_legacy_and_external_only_payloads() -> None:
+    legacy = VideoRequest.model_validate(
+        {"cache": True, "dynamicUrl": "https://video.test/legacy"}
+    )
+    external = VideoRequest.model_validate({"cache": True, "EXTERNAL": "https://m.ok.ru/video/1"})
+
+    assert legacy.url == "https://video.test/legacy"
+    assert external.url is None
+    assert external.external == "https://m.ok.ru/video/1"
 
 
 def test_next_cid_is_monotonic_when_clock_does_not_move(

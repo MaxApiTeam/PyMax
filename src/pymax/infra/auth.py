@@ -95,3 +95,7 @@ class AuthMixin(IClientProtocol):
         """
 
         return await self._app.api.auth.check_2fa()
+
+    def is_update_available(self) -> bool:
+        """Возвращает признак доступного обновления приложения по handshake."""
+        return self._app.api.auth.is_update_available()

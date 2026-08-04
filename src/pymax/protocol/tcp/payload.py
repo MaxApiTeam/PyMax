@@ -11,6 +11,8 @@ logger = get_logger(__name__)
 
 
 class MsgpackPayloadCodec:
+    WRAPPED_VALUE_EXT_CODE = 1
+
     def _to_msgpack_value(self, value: Any) -> Any:
         if isinstance(value, Enum):
             return value.value
@@ -30,9 +32,24 @@ class MsgpackPayloadCodec:
     def _unpack_stream(
         self, payload_bytes: bytes, *, raw: bool
     ) -> list[Any]:  # TODO: deprecate? idk
-        unpacker = msgpack.Unpacker(raw=raw, strict_map_key=False)
+        unpacker = msgpack.Unpacker(
+            raw=raw,
+            strict_map_key=False,
+            ext_hook=self._decode_ext,
+        )
         unpacker.feed(payload_bytes)
         return list(unpacker)
+
+    def _decode_ext(self, code: int, data: bytes) -> Any:
+        if code != self.WRAPPED_VALUE_EXT_CODE:
+            return msgpack.ExtType(code, data)
+
+        return msgpack.unpackb(
+            data,
+            raw=False,
+            strict_map_key=False,
+            ext_hook=self._decode_ext,
+        )
 
     def decode(self, payload_bytes: bytes) -> Any:
         if not payload_bytes:
@@ -43,6 +60,7 @@ class MsgpackPayloadCodec:
                 payload_bytes,
                 raw=False,
                 strict_map_key=False,
+                ext_hook=self._decode_ext,
             )
 
         except msgpack.exceptions.ExtraData as e:
@@ -81,6 +99,8 @@ class TcpPayloadDecoder:
             return {self._normalize_key(k): self._normalize_keys(v) for k, v in obj.items()}
         if isinstance(obj, list):
             return [self._normalize_keys(item) for item in obj]
+        if isinstance(obj, msgpack.ExtType):
+            return obj
         if isinstance(obj, tuple):
             return tuple(self._normalize_keys(item) for item in obj)
         return obj

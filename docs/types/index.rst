@@ -40,7 +40,7 @@ Types
 ``ContactInfo``
    Контакт телефонной книги для ``import_contacts()``.
 
-``PhotoAttachment``, ``VideoAttachment``, ``FileAttachment`` и другие
+``PhotoAttachment``, ``VideoAttachment``, ``FileAttachment``, ``PollAttachment`` и другие
    Входящие вложения в ``message.attaches``.
 
 ``SyncState`` и ``SyncOverrides``
@@ -112,6 +112,8 @@ API reference
    control_attachment
    file_attachment
    photo_attachment
+   poll
+   poll_attachment
    share_attachment
    sticker_attachment
    video_attachment

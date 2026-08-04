@@ -3,6 +3,7 @@ from pymax.api.messages.service import SendAttachments
 from pymax.types import (
     FileRequest,
     Message,
+    PollState,
     ReactionInfo,
     ReadState,
     VideoRequest,
@@ -17,23 +18,26 @@ class MessageMixin(IClientProtocol):
     async def send_message(
         self,
         chat_id: int,
-        text: str,
+        text: str | None = None,
         reply_to: int | None = None,
         attachments: SendAttachments = None,
         *,
         notify: bool = True,
-    ) -> Message | None:
+    ) -> Message:
         """Отправляет сообщение в чат.
 
         Args:
             chat_id: ID чата.
-            text: Текст сообщения.
+            text: Текст сообщения. Можно не передавать при наличии вложений.
             reply_to: ID сообщения для ответа.
-            attachments: Файлы, фотографии или видео для отправки.
+            attachments: Файлы, фотографии, видео или опросы для отправки.
             notify: Отправить ли получателям push-уведомление.
 
         Returns:
-            Отправленное сообщение или ``None``, если сервер не вернул его.
+            Отправленное сообщение.
+
+        Raises:
+            ValueError: Если не переданы ни текст, ни вложения.
         """
         return await self._app.api.messages.send_message(
             chat_id,
@@ -69,7 +73,7 @@ class MessageMixin(IClientProtocol):
         source_chat_id: int | None = None,
         *,
         notify: bool = True,
-    ) -> Message | None:
+    ) -> Message:
         """Пересылает существующее сообщение в чат.
 
         Args:
@@ -80,7 +84,7 @@ class MessageMixin(IClientProtocol):
             notify: Отправить ли получателям push-уведомление.
 
         Returns:
-            Пересланное сообщение или ``None``, если сервер не вернул его.
+            Пересланное сообщение.
         """
         return await self._app.api.messages.forward_message(
             chat_id=chat_id,
@@ -112,7 +116,7 @@ class MessageMixin(IClientProtocol):
         self,
         chat_id: int,
         message_id: int,
-        text: str,
+        text: str | None = None,
         attachments: SendAttachments = None,
     ) -> Message:
         """Редактирует текст и вложения сообщения.
@@ -121,7 +125,7 @@ class MessageMixin(IClientProtocol):
             chat_id: ID чата.
             message_id: ID сообщения.
             text: Новый текст сообщения с поддержкой markdown.
-            attachments: Новые файлы, фотографии или видео для сообщения.
+            attachments: Новые файлы, фотографии, видео или опросы для сообщения.
 
         Returns:
             Отредактированное сообщение.
@@ -145,7 +149,7 @@ class MessageMixin(IClientProtocol):
         get_chat: bool = False,
         get_messages: bool = True,
         interactive: bool = False,
-    ) -> list[Message] | None:
+    ) -> list[Message]:
         """Загружает историю сообщений чата.
 
         Args:
@@ -162,7 +166,7 @@ class MessageMixin(IClientProtocol):
             interactive: Пометить запрос как интерактивный.
 
         Returns:
-            Сообщения или ``None``, если сервер не вернул список.
+            Список сообщений. Если сервер не вернул сообщения, список пуст.
         """
         return await self._app.api.messages.fetch_history(
             chat_id=chat_id,
@@ -343,4 +347,29 @@ class MessageMixin(IClientProtocol):
         return await self._app.api.messages.read_message(
             message_id=message_id,
             chat_id=chat_id,
+        )
+
+    async def vote_poll(
+        self,
+        chat_id: int,
+        message_id: int,
+        poll_id: int,
+        answer_ids: list[int],
+    ) -> PollState:
+        """Отправляет выбранные ответы в опросе.
+
+        Args:
+            chat_id: ID чата с опросом.
+            message_id: ID сообщения с опросом.
+            poll_id: ID опроса из ``PollAttachment.poll_id``.
+            answer_ids: ID выбранных вариантов ответа.
+
+        Returns:
+            Обновленное состояние опроса.
+        """
+        return await self._app.api.messages.vote_poll(
+            chat_id=chat_id,
+            message_id=message_id,
+            poll_id=poll_id,
+            answer_ids=answer_ids,
         )

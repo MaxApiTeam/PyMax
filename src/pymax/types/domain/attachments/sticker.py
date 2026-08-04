@@ -42,7 +42,7 @@ class StickerAttachment(CamelModel):
     sticker_id: int
     tags: list[str] | None = None
     width: int
-    set_id: int
+    set_id: int | None = None
     time: int
     sticker_type: str
     audio: bool

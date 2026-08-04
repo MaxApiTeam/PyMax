@@ -8,6 +8,7 @@ from pymax.connection import ConnectionManager
 from pymax.dispatch import Dispatcher
 from pymax.dispatch.router import EventType, Router
 from pymax.exceptions import ApiError
+from pymax.fingerprint import FingerprintGenerator
 from pymax.logging import get_logger
 from pymax.protocol import Command, InboundFrame, OutboundFrame
 from pymax.protocol.enums import Opcode
@@ -15,7 +16,8 @@ from pymax.session import SessionStore
 from pymax.session.models import SessionInfo
 from pymax.telemetry import TelemetryService
 from pymax.types import MaxApiError, Message
-from pymax.types.domain import Chat, Profile, User
+from pymax.types.domain import Chat, HandshakeResponse, Login2Response, Profile, User
+from pymax.types.domain.login import LoginResponse
 
 if TYPE_CHECKING:
     from pymax.base import BaseClient
@@ -38,6 +40,7 @@ class App(Generic[ClientT]):
         self.config = config
         self.store = self.config.store or SessionStore(config.work_dir, config.session_name)
         self.auth_flow = auth_flow
+        self.fingerprint_generator = FingerprintGenerator()
 
         self.me: Profile | None = None
         self.chats: list[Chat] | None = None
@@ -46,6 +49,7 @@ class App(Generic[ClientT]):
         self.messages: dict[int, list[Message]] = {}
 
         self.session: SessionInfo | None = None
+        self.handshake_response: HandshakeResponse | None = None
 
         self.started = False
         self._ping_task: asyncio.Task[None] | None = None
@@ -81,11 +85,13 @@ class App(Generic[ClientT]):
                 session_data.device_id if session_data else self.config.device.device_id
             )
             logger.debug("running handshake")
-            await self.handshake(handshake_device_id)
+            handshake_response = await self.handshake(handshake_device_id)
         except (ConnectionError, EOFError, OSError, TimeoutError) as e:
             logger.exception("failed to connect or handshake")
             await self.connection.close()
             raise ConnectionError(f"Failed to connect and handshake: {e}") from e
+
+        self.handshake_response = handshake_response
 
         self._ping_task = asyncio.create_task(self._ping_loop())
 
@@ -129,10 +135,26 @@ class App(Generic[ClientT]):
         logger.debug("logging in")
 
         try:
-            response = await self.api.auth.login(
-                self.config.device.user_agent,
-            )
+            login_response, login2_response = await self.login()
+
+            if (
+                login2_response
+                and login_response.login2_flags
+                and login_response.login2_flags.profile_enabled
+                and login2_response.profile
+            ):
+                self.me = login2_response.profile
+            elif login_response.profile:
+                self.me = login_response.profile
+            elif login2_response and login2_response.profile:
+                self.me = login2_response.profile
+            else:
+                logger.error("Unexpected internal state: login response does not contain profile")
+                raise RuntimeError("Login response does not contain profile")
         except Exception as e:
+            if self._is_invalid_login_token_error(e):
+                raise
+
             handled = False
             if self.dispatcher.client is not None:
                 handled = await self.dispatcher.emit_error(
@@ -148,15 +170,23 @@ class App(Generic[ClientT]):
             await self.close()
             return
 
-        if response.token is not None and response.token != self.session.token:
-            await self.store.update_token(self.session.token, response.token)
-            self.session.token = response.token
+        if login_response.token is not None and login_response.token != self.session.token:
+            await self.store.update_token(self.session.token, login_response.token)
+            self.session.token = login_response.token
 
-        self.me = response.profile
-        self.chats = response.chats
+        self.chats = login_response.chats
         self.users[self.me.contact.id] = self.me.contact
-        self.contacts = response.contacts
-        self.messages = response.messages
+
+        if (
+            login2_response
+            and login_response.login2_flags
+            and login_response.login2_flags.contact_enabled
+        ):
+            self.contacts = login2_response.contacts
+        else:
+            self.contacts = login_response.contacts
+
+        self.messages = login_response.messages
 
         self.started = True
         logger.info(
@@ -168,13 +198,37 @@ class App(Generic[ClientT]):
         if self._telemetry:
             self._telemetry.start()
 
-    async def handshake(self, device_id: str) -> None:
-        await self.api.session.handshake(
+    @staticmethod
+    def _is_invalid_login_token_error(exc: Exception) -> bool:
+        return (
+            isinstance(exc, ApiError)
+            and exc.opcode == Opcode.LOGIN
+            and any(
+                err in (exc.error, exc.message) for err in ("FAIL_LOGIN_TOKEN", "FAIL_LOGOUT_ALL")
+            )
+        )
+
+    async def login(self) -> tuple[LoginResponse, Login2Response | None]:
+        login_response = await self.api.auth.login(
+            self.config.device.user_agent,
+        )
+
+        if login_response.login2_flags and login_response.login2_flags.enabled:
+            logger.debug("login2 required; proceeding with login2")
+            login2_response = await self.api.auth.mobile_login2(login_response.login2_flags)
+
+            return login_response, login2_response
+
+        return login_response, None
+
+    async def handshake(self, device_id: str) -> HandshakeResponse:
+        response = await self.api.session.handshake(
             self.config.device.mt_instance_id,
             self.config.device.user_agent,
             device_id,
         )
         logger.debug("handshake completed device_id=%s", device_id)
+        return response
 
     async def close(self) -> None:
         if self._telemetry:
@@ -246,7 +300,7 @@ class App(Generic[ClientT]):
             while True:
                 await self.invoke(
                     opcode=Opcode.PING,
-                    payload={"interactive": True},
+                    payload={"interactive": self.config.interactive},
                     timeout=self.config.request_timeout,
                 )
                 await asyncio.sleep(30)

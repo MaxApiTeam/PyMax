@@ -3,7 +3,7 @@ from pydantic import ValidationError
 from pymax.logging import get_logger
 from pymax.protocol import InboundFrame
 from pymax.protocol.enums import Opcode
-from pymax.types import Message
+from pymax.types import AudioUploadSignal, Message
 from pymax.types.domain.enums import MessageStatus
 from pymax.types.events import FileUploadSignal, VideoUploadSignal
 
@@ -48,6 +48,12 @@ def resolve_attach(frame: InboundFrame) -> EventType | None:
         return EventType.VIDEO_READY
     except ValidationError:
         logger.debug("attach event is not a video upload signal")
+
+    try:
+        AudioUploadSignal.model_validate(frame.payload)
+        return EventType.VOICE_READY
+    except ValidationError:
+        logger.debug("attach event is not a voice upload signal")
 
     return None
 

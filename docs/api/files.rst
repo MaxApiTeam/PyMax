@@ -12,3 +12,11 @@ Files API
 .. autoclass:: pymax.Video
    :members:
    :show-inheritance:
+
+.. autoclass:: pymax.VideoNote
+   :members:
+   :show-inheritance:
+
+.. autoclass:: pymax.Voice
+   :members:
+   :show-inheritance:

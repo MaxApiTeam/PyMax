@@ -1,5 +1,7 @@
 from typing import Any
 
+from pymax.api.self import PrivacySettingsUpdate
+from pymax.files import Photo
 from pymax.types import FolderList, FolderUpdate
 
 from .protocol import IClientProtocol
@@ -19,7 +21,7 @@ class SelfMixin(IClientProtocol):
         first_name: str,
         last_name: str | None = None,
         description: str | None = None,
-        photo: Any | None = None,
+        photo: Photo | None = None,
         *,
         photo_token: str | None = None,
     ) -> bool:
@@ -133,3 +135,25 @@ class SelfMixin(IClientProtocol):
             ``True``, если сервер принял запрос на выход.
         """
         return await self._app.api.account.logout()
+
+    def set_presence(self, *, online: bool) -> None:
+        """Устанавливает статус присутствия текущего аккаунта.
+
+        Статус применяется не мгновенно, а при следующем запросе login/ping.
+
+        Args:
+            online: ``True``, если нужно установить статус "в сети", иначе
+                ``False``.
+        """
+        self._app.api.account.set_presence(online)
+
+    async def change_profile_settings(self, settings: PrivacySettingsUpdate) -> bool:
+        """Обновляет настройки приватности текущего аккаунта.
+
+        Args:
+            settings: Объект с новыми настройками приватности.
+
+        Returns:
+            ``True``, если сервер принял запрос.
+        """
+        return await self._app.api.account.change_profile_settings(settings=settings)

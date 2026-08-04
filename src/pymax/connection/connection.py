@@ -37,6 +37,8 @@ class ConnectionManager:
 
         self._recv_task: asyncio.Task[None] | None = None
         self._event_tasks: set[asyncio.Task[None]] = set()
+        self._closed_event = asyncio.Event()
+        self._closed_event.set()
 
     async def open(self) -> None:
         if self._is_open:
@@ -48,6 +50,7 @@ class ConnectionManager:
         self._is_open = True
         self._connection_lost = False
         self._close_reported = False
+        self._closed_event.clear()
 
         self._recv_task = asyncio.create_task(self._recv_loop())
         logger.debug("receive loop started")
@@ -58,25 +61,28 @@ class ConnectionManager:
             return
 
         logger.info("closing connection")
-        if self._recv_task:
-            if not self._recv_task.done():
-                self._recv_task.cancel()
-            with suppress(asyncio.CancelledError, Exception):
-                await self._recv_task
-            logger.debug("receive loop stopped")
-            self._recv_task = None
-
-        for task in tuple(self._event_tasks):
-            if not task.done():
-                task.cancel()
-        for task in tuple(self._event_tasks):
-            with suppress(asyncio.CancelledError, Exception):
-                await task
-        self._event_tasks.clear()
-
-        self.requests.cancel_all()
-        await self.transport.close()
         self._is_open = False
+        try:
+            if self._recv_task:
+                if not self._recv_task.done():
+                    self._recv_task.cancel()
+                with suppress(asyncio.CancelledError, Exception):
+                    await self._recv_task
+                logger.debug("receive loop stopped")
+                self._recv_task = None
+
+            for task in tuple(self._event_tasks):
+                if not task.done():
+                    task.cancel()
+            for task in tuple(self._event_tasks):
+                with suppress(asyncio.CancelledError, Exception):
+                    await task
+            self._event_tasks.clear()
+
+            self.requests.cancel_all()
+            await self.transport.close()
+        finally:
+            self._closed_event.set()
         logger.info("connection closed")
 
     async def fail(self, exc: Exception | None = None) -> None:
@@ -147,6 +153,11 @@ class ConnectionManager:
 
         try:
             await self._recv_task
+        except asyncio.CancelledError:
+            if self._is_open:
+                raise
+            await self._closed_event.wait()
+            return
         except Exception as e:
             if self._connection_lost:
                 raise ConnectionError("Connection lost") from e

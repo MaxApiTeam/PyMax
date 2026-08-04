@@ -13,6 +13,7 @@ from pymax.auth import EmailCodeProvider
 from pymax.auth.providers import ConsoleEmailCodeProvider
 from pymax.logging import get_logger
 from pymax.protocol import Opcode
+from pymax.types.domain import Login2Flags, Login2Response
 from pymax.types.domain.auth import (
     CheckCodeResponse,
     CheckPasswordResponse,
@@ -31,6 +32,7 @@ from .payloads import (
     ConfirmQrPayload,
     ConfirmRegistrationPayload,
     CreateAuthTrackPayload,
+    Login2Payload,
     MobileUserAgentPayload,
     RemoveTwoFactorPayload,
     RequestCodePayload,
@@ -58,7 +60,32 @@ class AuthService:
 
     async def request_code(self, phone: str) -> StartAuthResponse:
         logger.info("requesting sms code phone_set=%s", bool(phone))
-        frame = RequestCodePayload(phone=phone)
+
+        if not self.app.handshake_response:
+            logger.error("request_code requested without handshake response")
+            raise RuntimeError("No handshake response available for request_code")
+
+        device_id = (
+            self.app.session.device_id if self.app.session else self.app.config.device.device_id
+        )
+
+        if self.app.config.device.user_agent.device_type != DeviceType.WEB:
+            if self.app.handshake_response.calls_seed is None:
+                raise ValueError(
+                    "Unexpected internal state: handshake_response.calls_seed is missing "
+                    + "in AuthService.request_code. Please report this issue to the developer."
+                )
+
+            mode = self.app.fingerprint_generator.generate_fingerprint(
+                version=self.app.config.device.user_agent.app_version,
+                device_id=device_id,
+                calls_seed=self.app.handshake_response.calls_seed,
+                arch=self.app.config.device.user_agent.arch or "arm64-v8a",
+            )
+        else:
+            mode = None
+
+        frame = RequestCodePayload(phone=phone, mode=mode)
         response = await self.app.invoke(Opcode.AUTH_REQUEST, frame.to_payload())
         logger.debug(
             "sms code request accepted payload_keys=%s",
@@ -72,7 +99,11 @@ class AuthService:
             bool(token),
             bool(verify_code),
         )
-        frame = SendCodePayload(token=token, verify_code=verify_code)
+
+        frame = SendCodePayload(
+            token=token,
+            verify_code=verify_code,
+        )
         response = await self.app.invoke(Opcode.AUTH, frame.to_payload())
         logger.debug(
             "sms code response payload_keys=%s",
@@ -117,11 +148,35 @@ class AuthService:
             raise RuntimeError("No session available for login")
 
         logger.info("logging in")
+
+        if not self.app.handshake_response:
+            logger.error("login requested without handshake response")
+            raise RuntimeError("No handshake response available for login")
+
+        device_id = (
+            self.app.session.device_id if self.app.session else self.app.config.device.device_id
+        )
+
+        if self.app.handshake_response.calls_seed is None:
+            raise ValueError(
+                "Unexpected internal state: handshake_response.calls_seed is missing "
+                + "in AuthService.mobile_login. Please report this issue to the developer."
+            )
+
+        ccf = self.app.fingerprint_generator.generate_fingerprint(
+            version=self.app.config.device.user_agent.app_version,
+            device_id=device_id,
+            calls_seed=self.app.handshake_response.calls_seed,
+            arch=self.app.config.device.user_agent.arch or "arm64-v8a",
+        )
+
         sync = self.app.config.sync.resolve(session.sync)
         frame = SyncPayload.from_sync_state(
             user_agent=self.app.config.device.user_agent,
             token=session.token,
             sync=sync,
+            chat_cache_fingerprint=ccf,
+            interactive=self.app.config.interactive,
         )
         response = await self.app.invoke(Opcode.LOGIN, frame.to_payload())
 
@@ -133,6 +188,30 @@ class AuthService:
         )
         await self._update_session(login_response)
         return login_response
+
+    async def mobile_login2(self, flags: Login2Flags) -> Login2Response:
+        session = self.app.session
+        if session is None:
+            logger.error("login2 requested without session")
+            raise RuntimeError("No session available for login2")
+
+        sync = self.app.config.sync.resolve(session.sync)
+
+        frame = Login2Payload.from_sync_state(
+            sync,
+            profile_enabled=flags.profile_enabled,
+            contact_enabled=flags.contact_enabled,
+        )
+
+        response = await self.app.invoke(Opcode.LOGIN2, frame.to_payload())
+        logger.debug("login2 response payload_keys=%s", payload_keys(response))
+
+        login2_response = bind_api_model(
+            self.app,
+            require_payload_model(response, Login2Response),
+        )
+        await self._update_session(login2_response)
+        return login2_response
 
     async def web_login(self) -> LoginResponse:
         session = self.app.session
@@ -146,6 +225,7 @@ class AuthService:
         frame = WebSyncPayload.from_sync_state(
             token=session.token,
             sync=sync,
+            interactive=self.app.config.interactive,
         )
         response = await self.app.invoke(Opcode.LOGIN, frame.to_payload())
 
@@ -177,7 +257,7 @@ class AuthService:
 
         return require_payload_model(response, CheckCodeResponse)
 
-    async def _update_session(self, response: LoginResponse) -> None:
+    async def _update_session(self, response: LoginResponse | Login2Response) -> None:
         session = self.app.session
         if session is None:
             return
@@ -377,3 +457,8 @@ class AuthService:
         response = await self.app.invoke(Opcode.AUTH_CONFIRM, frame.to_payload())
 
         return require_payload_model(response, ConfirmRegistrationResponse)
+
+    def is_update_available(self) -> bool:
+        return bool(
+            self.app.handshake_response.app_update_type if self.app.handshake_response else False
+        )

@@ -90,6 +90,40 @@ login/sync, а также методы для загрузки, создания
 ``invite()`` работает только для групп и каналов. Для личного диалога тип чата
 не подходит, и метод завершится ошибкой.
 
+Участники и администраторы канала
+---------------------------------
+
+``get_chat_members()`` возвращает одну страницу участников и маркер следующей:
+
+.. code-block:: python
+
+   members, marker = await client.get_chat_members(chat_id=123456, count=50)
+   for member in members:
+       print(member.contact.id)
+
+   if marker:
+       next_members, marker = await client.get_chat_members(
+           chat_id=123456,
+           marker=marker,
+           count=50,
+       )
+
+Назначить администратора канала можно с явным набором прав:
+
+.. code-block:: python
+
+   from pymax.api.chats import ChannelPermissions
+
+   await client.add_admin(
+       chat_id=123456,
+       user_id=111,
+       permissions=[
+           ChannelPermissions.POST_MESSAGE,
+           ChannelPermissions.EDIT_MESSAGE,
+           ChannelPermissions.DELETE_MESSAGE,
+       ],
+   )
+
 Настройки и профиль группы
 --------------------------
 

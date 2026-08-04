@@ -53,6 +53,16 @@ Account
        photo_token="PHOTO_TOKEN",
    )
 
+Статус присутствия
+------------------
+
+``set_presence()`` меняет статус, который будет использован при следующем
+login или ping:
+
+.. code-block:: python
+
+   client.set_presence(online=True)
+
 Папки чатов
 -----------
 

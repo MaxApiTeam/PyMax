@@ -62,18 +62,18 @@ class VideoRequest(CamelModel):
     :vartype external: str | bool | None
     :ivar cache: Использовать ли кеш.
     :vartype cache: bool
-    :ivar url: URL видео.
-    :vartype url: str
+    :ivar url: Прямой URL видео или ``None`` для внешнего видео.
+    :vartype url: str | None
     """
 
     external: str | bool | None = Field(default=None, alias="EXTERNAL")
-    cache: bool
-    url: str
+    cache: bool = False  # TODO: idk maybe | None = None better
+    url: str | None = None
 
     @model_validator(mode="before")
     @classmethod
-    def unwrap_dynamic_url(cls, value: Any) -> Any:
-        """Нормализует динамический ключ URL в поле ``url``.
+    def select_video_url(cls, value: Any) -> Any:
+        """Выбирает прямой URL с максимальным доступным MP4-качеством.
 
         :param value: Значение, переданное в валидатор модели.
         :type value: Any
@@ -83,8 +83,29 @@ class VideoRequest(CamelModel):
         if not isinstance(value, dict) or "url" in value:
             return value
 
+        mp4_urls: list[tuple[int, str]] = []
         for key, url in value.items():
-            if key not in ("EXTERNAL", "cache"):
-                return {**value, "url": url}
+            if not isinstance(key, str) or not isinstance(url, str):
+                continue
+
+            normalized_key = key.upper()
+            if not normalized_key.startswith("MP4_"):
+                continue
+
+            try:
+                quality = int(normalized_key.removeprefix("MP4_"))
+            except ValueError:
+                continue
+
+            if quality > 0:
+                mp4_urls.append((quality, url))
+
+        if mp4_urls:
+            _, url = max(mp4_urls, key=lambda item: item[0])
+            return {**value, "url": url}
+
+        legacy_url = value.get("dynamicUrl", value.get("dynamic_url"))
+        if isinstance(legacy_url, str):
+            return {**value, "url": legacy_url}
 
         return value

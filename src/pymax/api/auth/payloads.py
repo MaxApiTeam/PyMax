@@ -10,12 +10,13 @@ from .enums import AuthType, TwoFactorAction
 class RequestCodePayload(CamelModel):
     phone: str
     type: AuthType = AuthType.START_AUTH
-    language: str = "ru"
+    mode: bytes | None
 
 
 class SendCodePayload(CamelModel):
     token: str
     verify_code: str
+
     auth_token_type: AuthType = AuthType.CHECK_CODE
 
 
@@ -42,19 +43,21 @@ class WebSyncPayload(CamelModel):
         cls,
         token: str,
         sync: SyncState,
+        interactive: bool = True,
     ) -> "WebSyncPayload":
         return cls(
             token=token,
             chats_sync=sync.chats_sync,
             contacts_sync=sync.contacts_sync,
             drafts_sync=sync.drafts_sync,
+            interactive=interactive,
         )
 
 
 class SyncPayload(CamelModel):
     user_agent: MobileUserAgentPayload
     token: str
-    chat_hash_fingerprint: str | None = None
+    chat_cache_fingerprint: bytes | None = None
     chats_count: int | None = None
     chats_sync: int = -1
     contacts_sync: int = -1
@@ -70,15 +73,19 @@ class SyncPayload(CamelModel):
         user_agent: MobileUserAgentPayload,
         token: str,
         sync: SyncState,
+        chat_cache_fingerprint: bytes | None = None,
+        interactive: bool = True,
     ) -> "SyncPayload":
         return cls(
             user_agent=user_agent,
             token=token,
+            chat_cache_fingerprint=chat_cache_fingerprint,
             chats_sync=sync.chats_sync,
             contacts_sync=sync.contacts_sync,
             drafts_sync=sync.drafts_sync,
             presence_sync=sync.presence_sync,
             config_hash=sync.config_hash,
+            interactive=interactive,
         )
 
 
@@ -138,3 +145,22 @@ class ConfirmRegistrationPayload(CamelModel):
     last_name: str | None = None
     token: str
     token_type: AuthType = AuthType.REGISTER
+
+
+class Login2Payload(CamelModel):
+    need_profile: bool
+    contacts_sync: int
+    config_hash: ConfigHash
+
+    @classmethod
+    def from_sync_state(
+        cls,
+        sync: SyncState,
+        profile_enabled: bool,
+        contact_enabled: bool,
+    ) -> "Login2Payload":
+        return cls(
+            need_profile=profile_enabled,
+            contacts_sync=sync.contacts_sync if contact_enabled else -1,
+            config_hash=sync.config_hash,
+        )

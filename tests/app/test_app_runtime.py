@@ -13,7 +13,7 @@ from pymax.dispatch import Dispatcher, EventType, Router
 from pymax.exceptions import ApiError
 from pymax.protocol import Command, InboundFrame, Opcode
 from pymax.session.models import SessionInfo
-from tests.conftest import frame, make_config, profile_payload
+from tests.conftest import frame, make_config, profile_payload, user_payload
 
 
 class RuntimeStore:
@@ -123,7 +123,7 @@ async def test_app_start_with_config_token_handshakes_logs_in_and_saves_session(
     config = make_config().model_copy(update={"token": "config-token", "store": store})
     connection = RuntimeConnection(
         [
-            frame({}),
+            frame({"callsSeed": 123}),
             frame(
                 {
                     "profile": profile_payload(77),
@@ -154,6 +154,139 @@ async def test_app_start_with_config_token_handshakes_logs_in_and_saves_session(
 
 
 @pytest.mark.asyncio
+async def test_app_start_completes_login2_and_uses_deferred_profile_and_contacts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def idle_ping_loop(self):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(App, "_ping_loop", idle_ping_loop)
+    store = RuntimeStore()
+    config = make_config().model_copy(update={"token": "config-token", "store": store})
+    connection = RuntimeConnection(
+        [
+            frame({"callsSeed": 123}),
+            frame(
+                {
+                    "token": "login-token",
+                    "chats": [],
+                    "messages": {},
+                    "time": 777,
+                    "config": {"hash": "login-hash"},
+                    "login2Flags": {
+                        "contactEnabled": True,
+                        "configEnabled": True,
+                        "profileEnabled": True,
+                    },
+                }
+            ),
+            frame(
+                {
+                    "profile": profile_payload(77),
+                    "contactInfos": [user_payload(88)],
+                    "config": {"hash": "login2-hash"},
+                }
+            ),
+        ]
+    )
+    app: App[object] = App(connection, config, StaticAuthFlow())
+
+    await app.start()
+
+    assert app.started is True
+    assert app.me is not None
+    assert app.me.contact.id == 77
+    assert app.me.contact._actions is app.api.users
+    assert app.contacts[0] is not None
+    assert app.contacts[0].id == 88
+    assert app.contacts[0]._actions is app.api.users
+    assert app.session is not None
+    assert app.session.token == "login-token"
+    assert app.session.sync.config_hash == "login2-hash"
+    assert [sent[0].opcode for sent in connection.sent] == [
+        Opcode.SESSION_INIT,
+        Opcode.LOGIN,
+        Opcode.LOGIN2,
+    ]
+    assert connection.sent[2][0].payload == {
+        "needProfile": True,
+        "contactsSync": 777,
+        "configHash": "login-hash",
+    }
+
+    await app.close()
+
+
+@pytest.mark.asyncio
+async def test_app_start_keeps_login_contacts_when_login2_contacts_are_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def idle_ping_loop(self):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(App, "_ping_loop", idle_ping_loop)
+    store = RuntimeStore()
+    config = make_config().model_copy(update={"token": "config-token", "store": store})
+    connection = RuntimeConnection(
+        [
+            frame({"callsSeed": 123}),
+            frame(
+                {
+                    "profile": profile_payload(77),
+                    "contacts": [user_payload(88)],
+                    "login2Flags": {"configEnabled": True},
+                }
+            ),
+            frame({"config": {"hash": "login2-hash"}}),
+        ]
+    )
+    app: App[object] = App(connection, config, StaticAuthFlow())
+
+    await app.start()
+
+    assert app.contacts[0] is not None
+    assert app.contacts[0].id == 88
+    assert connection.sent[2][0].payload["contactsSync"] == -1
+
+    await app.close()
+
+
+@pytest.mark.asyncio
+async def test_app_start_emits_missing_profile_error_to_root_router(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def idle_ping_loop(self):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(App, "_ping_loop", idle_ping_loop)
+    store = RuntimeStore()
+    config = make_config().model_copy(update={"token": "config-token", "store": store})
+    connection = RuntimeConnection(
+        [
+            frame({"callsSeed": 123}),
+            frame({"chats": [], "messages": {}}),
+        ]
+    )
+    root_router: Router[object] = Router()
+    app: App[object] = App(connection, config, StaticAuthFlow(), root_router)
+    app.dispatcher.bind_client(object())
+    seen: list[Exception] = []
+
+    @root_router.on_error()
+    async def on_error(exc, ctx):
+        seen.append(exc)
+
+    await app.start()
+
+    assert len(seen) == 1
+    assert isinstance(seen[0], RuntimeError)
+    assert str(seen[0]) == "Login response does not contain profile"
+    assert app.started is False
+    assert connection.closed is True
+    assert store.closed is True
+
+
+@pytest.mark.asyncio
 async def test_app_start_emits_login_errors_to_root_router(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -165,7 +298,7 @@ async def test_app_start_emits_login_errors_to_root_router(
     config = make_config().model_copy(update={"token": "config-token", "store": store})
     connection = RuntimeConnection(
         [
-            frame({}),
+            frame({"callsSeed": 123}),
             InboundFrame(
                 opcode=Opcode.LOGIN,
                 cmd=Command.ERROR,
@@ -218,7 +351,7 @@ async def test_client_start_does_not_emit_on_start_after_handled_login_error(
     config = make_config().model_copy(update={"token": "config-token", "store": store})
     connection = RuntimeConnection(
         [
-            frame({}),
+            frame({"callsSeed": 123}),
             InboundFrame(
                 opcode=Opcode.LOGIN,
                 cmd=Command.ERROR,
@@ -258,6 +391,74 @@ async def test_client_start_does_not_emit_on_start_after_handled_login_error(
     assert store.closed is True
 
 
+@pytest.mark.parametrize(
+    ("error", "message"),
+    [
+        ("FAIL_LOGIN_TOKEN", "Token expired"),
+        ("login_failed", "FAIL_LOGIN_TOKEN"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_client_start_reauthenticates_after_login_token_revocation(
+    monkeypatch: pytest.MonkeyPatch,
+    error: str,
+    message: str,
+) -> None:
+    async def idle_ping_loop(self):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(App, "_ping_loop", idle_ping_loop)
+    old_session = SessionInfo(token="revoked-token", device_id="dev", phone="+7")
+    store = RuntimeStore(old_session)
+    config = make_config().model_copy(update={"token": "revoked-token", "store": store})
+    connection = RuntimeConnection(
+        [
+            frame({"callsSeed": 123}),
+            InboundFrame(
+                opcode=Opcode.LOGIN,
+                cmd=Command.ERROR,
+                seq=1,
+                payload={
+                    "error": error,
+                    "title": "Login failed",
+                    "message": message,
+                    "localizedMessage": "Session expired",
+                },
+            ),
+            frame({"callsSeed": 456}),
+            frame(
+                {
+                    "profile": profile_payload(77),
+                    "token": "new-login-token",
+                    "contacts": [profile_payload(77)["contact"]],
+                    "chats": [],
+                    "messages": {},
+                }
+            ),
+        ]
+    )
+    root_router: Router[RuntimeClient] = Router()
+    app: App[RuntimeClient] = App(connection, config, StaticAuthFlow(), root_router)
+    client = RuntimeClient(app, root_router)
+    app.dispatcher.bind_client(client)
+    errors: list[Exception] = []
+
+    @root_router.on_error()
+    async def on_error(exc, ctx):
+        errors.append(exc)
+
+    await client.start()
+
+    assert errors == []
+    assert store.deleted == ["revoked-token"]
+    assert store.saved[0].token == "auth-token"
+    assert store.loaded is not None
+    assert store.loaded.token == "new-login-token"
+    assert client.extra_config.token is None
+    assert client._config.token is None
+    assert client.me is not None
+
+
 @pytest.mark.asyncio
 async def test_client_start_emits_disconnect_before_reraising_without_reconnect(
     monkeypatch: pytest.MonkeyPatch,
@@ -273,7 +474,7 @@ async def test_client_start_emits_disconnect_before_reraising_without_reconnect(
     config = make_config().model_copy(update={"token": "config-token", "store": store})
     connection = RuntimeConnection(
         [
-            frame({}),
+            frame({"callsSeed": 123}),
             frame(
                 {
                     "profile": profile_payload(77),
@@ -418,7 +619,7 @@ async def test_app_marks_stopped_and_cancels_ping_on_connection_loss(
     config = make_config().model_copy(update={"token": "config-token", "store": store})
     connection = RuntimeConnection(
         [
-            frame({}),
+            frame({"callsSeed": 123}),
             frame(
                 {
                     "profile": profile_payload(77),

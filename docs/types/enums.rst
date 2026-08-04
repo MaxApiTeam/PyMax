@@ -19,6 +19,15 @@ Domain enums
 .. autoclass:: pymax.types.domain.attachments.enums.TranscriptionStatus
    :members:
 
+.. autoclass:: pymax.types.domain.attachments.enums.PollFlags
+   :members:
+
+Chat API enums
+--------------
+
+.. autoclass:: pymax.api.chats.ChannelPermissions
+   :members:
+
 Client config enums
 -------------------
 

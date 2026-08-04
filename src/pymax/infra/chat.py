@@ -1,3 +1,4 @@
+from pymax.api.chats import ChannelPermissions
 from pymax.types import Chat, Member, Message
 
 from .protocol import IClientProtocol
@@ -211,6 +212,28 @@ class ChatMixin(IClientProtocol):
         """
         return await self._app.api.chats.get_chat(chat_id)
 
+    async def get_chat_members(
+        self,
+        chat_id: int,
+        marker: int | None = None,
+        count: int = 50,
+    ) -> tuple[list[Member], int]:
+        """Возвращает страницу участников чата по ID.
+
+        Args:
+            chat_id: ID чата.
+            marker: Маркер страницы. Если ``None``, запрашивается первая
+                страница.
+            count: Максимальное количество участников в ответе.
+
+        Returns:
+            ``(members, next_marker)``. Если участников больше, чем
+            уместилось в ответ, ``next_marker`` ненулевой — передайте его в
+            следующий вызов, чтобы получить следующую страницу. ``0``
+            означает, что дальше страниц нет.
+        """
+        return await self._app.api.chats.get_chat_members(chat_id, marker, count)
+
     async def leave_group(self, chat_id: int) -> None:
         """Выходит из группы.
 
@@ -372,3 +395,18 @@ class ChatMixin(IClientProtocol):
             Канал, в который вступил клиент.
         """
         return await self._app.api.chats.join_channel(link=link)
+
+    async def add_admin(
+        self,
+        chat_id: int,
+        user_id: int,
+        permissions: list[ChannelPermissions],
+    ) -> None:
+        """Назначает пользователя администратором канала.
+
+        Args:
+            chat_id: ID канала.
+            user_id: ID пользователя.
+            permissions: Непустой список прав администратора.
+        """
+        return await self._app.api.chats.add_admin(chat_id, user_id, permissions)

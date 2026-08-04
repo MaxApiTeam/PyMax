@@ -1,6 +1,7 @@
-__version__ = "2.3.1"
+__version__ = "2.4.0"
 
 
+from .api.self import PrivacyAccess, PrivacySettingsUpdate
 from .auth import (
     AuthFlow,
     ConsolePasswordProvider,
@@ -17,7 +18,7 @@ from .client_web import WebClient
 from .config import ExtraConfig, RegistrationConfig
 from .dispatch import EventType, Router
 from .exceptions import ApiError, PyMaxError, UploadError
-from .files import File, Photo, Video
+from .files import File, Photo, Video, VideoNote, Voice
 from .logging import configure_logging
 from .routers import ClientRouter, WebRouter
 from .types import (
@@ -52,6 +53,8 @@ __all__ = (
     "Photo",
     "PresenceEvent",
     "Profile",
+    "PrivacyAccess",
+    "PrivacySettingsUpdate",
     "PyMaxError",
     "QrAuthFlow",
     "QrHandler",
@@ -66,6 +69,8 @@ __all__ = (
     "UploadError",
     "User",
     "Video",
+    "VideoNote",
+    "Voice",
     "WebClient",
     "WebRouter",
     "__version__",

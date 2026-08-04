@@ -1,4 +1,4 @@
-from random import choice, randint
+from random import choice, randint, random
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -11,17 +11,48 @@ from pymax.api.session.payloads import (
 from pymax.session import StoreProtocol
 from pymax.types.domain.sync import SyncOverrides
 
+MIN_PREFERRED_BUILD = 6712
 APP_VERSIONS: tuple[tuple[str, int], ...] = (
+    ("26.25.0", 6790),
+    ("26.24.0", 6784),
+    ("26.23.2", 6779),
+    ("26.23.1", 6778),
+    ("26.23.0", 6777),
+    ("26.22.2", 6773),
+    ("26.22.1", 6772),
+    ("26.22.0", 6770),
+    ("26.21.1", 6763),
+    ("26.20.2", 6758),
+    ("26.20.1", 6740),
+    ("26.19.3", 6734),
+    ("26.19.2", 6732),
+    ("26.19.1", 6729),
+    ("26.19.0", 6727),
+    ("26.18.4", 6724),
+    ("26.18.2", 6720),
+    ("26.18.1", 6716),
+    ("26.18.0", 6715),
+    ("26.17.1", 6712),
+    ("26.16.4", 6704),
+    ("26.16.3", 6702),
+    ("26.16.2", 6701),
+    ("26.16.1", 6700),
+    ("26.16.0", 6698),
+    ("26.15.3", 6695),
+    ("26.15.1", 6690),
+    ("26.15.0", 6689),
     ("26.14.1", 6686),
     ("26.14.0", 6685),
     ("26.13.0", 6683),
     ("26.12.2", 6681),
     ("26.12.1", 6679),
-    ("26.12.0", 6678),
-    ("26.11.3", 6680),
+    ("26.12.0", 6676),
+    ("26.11.3", 6670),
     ("26.11.2", 6669),
     ("26.11.1", 6665),
-    ("26.11.0", 6661),
+    ("26.10.1", 6653),
+    ("26.10.0", 6648),
+    ("26.9.1", 6643),
 )
 ANDROID_DEVICES: tuple[tuple[str, str, str, str], ...] = (
     ("Samsung SM-A525F", "Android 13", "405dpi 405dpi 1080x2400", "arm64-v8a"),
@@ -73,8 +104,11 @@ LOCALE_TIMEZONES: tuple[tuple[str, str], ...] = (
     ("ru", "Asia/Yakutsk"),
     ("ru", "Asia/Vladivostok"),
 )
-WEB_APP_VERSION = "26.5.5"
+WEB_APP_VERSION = "26.7.15"
 WEB_SCREEN = "1080x1920 1.0x"
+
+PREFERRED_VERSION = [version for version in APP_VERSIONS if version[1] >= MIN_PREFERRED_BUILD]
+LEGACY_VERSIONS = [version for version in APP_VERSIONS if version[1] < MIN_PREFERRED_BUILD]
 
 
 class DeviceConfig(BaseModel):
@@ -118,6 +152,8 @@ class ClientConfig(BaseModel):
     request_timeout: float = 30.0
     log_level: str = "INFO"
     telemetry: bool = False
+
+    interactive: bool = True
 
     store: StoreProtocol | None = None
 
@@ -176,7 +212,7 @@ class ExtraConfig(BaseModel):
 
     host: str = "api.oneme.ru"
     port: int = 443
-    url: str = "wss://ws-api.oneme.ru/websocket"
+    url: str = "wss://api.oneme.ru/websocket"
     use_ssl: bool = True
     proxy: str | None = None
     reconnect: bool = True
@@ -201,7 +237,8 @@ class ExtraConfig(BaseModel):
         Returns:
             Случайная, но правдоподобная конфигурация Android-клиента Max.
         """
-        app_version, build_number = choice(APP_VERSIONS)
+        versions = PREFERRED_VERSION if random() < 0.9 else LEGACY_VERSIONS
+        app_version, build_number = choice(versions)
         device_name, os_version, screen, arch = choice(ANDROID_DEVICES)
         locale, timezone = choice(LOCALE_TIMEZONES)
 

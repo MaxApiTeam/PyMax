@@ -33,6 +33,18 @@ Client
 6. Вызывается ``on_start``.
 7. Клиент слушает события до закрытия соединения или отмены задачи.
 
+Если ``start()`` запущен отдельной задачей, ``stop()`` штатно закрывает
+соединение и завершает эту задачу без ``CancelledError``:
+
+.. code-block:: python
+
+   import asyncio
+
+   task = asyncio.create_task(client.start())
+   # ... работа приложения ...
+   await client.stop()
+   await task
+
 Данные после login
 ------------------
 
@@ -53,6 +65,15 @@ Client
 
 Для актуализации используйте явные методы: ``fetch_chats()``, ``get_chat()``,
 ``get_users()``, ``fetch_users()`` и ``fetch_history()``.
+
+После handshake можно проверить, требует ли Max обновления версии приложения:
+
+.. code-block:: python
+
+   @client.on_start()
+   async def on_start(client: Client) -> None:
+       if client.is_update_available():
+           print("Для выбранной версии приложения доступно обновление")
 
 Создание клиента
 ----------------
@@ -300,13 +321,14 @@ Debug-логи показывают handshake, login, входящие собы�
 Клиент собирает несколько API-направлений:
 
 Сообщения
-   ``send_message()``, ``forward_message()``, ``fetch_history()``,
+   ``send_message()``, ``forward_message()``, ``fetch_history()``, ``vote_poll()``,
    ``delete_message()``, ``pin_message()``, ``read_message()``, реакции и
    получение URL для входящих файлов/видео.
 
 Чаты
    ``get_chat()``, ``fetch_chats()``, создание групп, invite-ссылки,
-   участники, настройки групп, удаление чатов и выход из групп/каналов.
+   участники, назначение администраторов, настройки групп, удаление чатов и
+   выход из групп/каналов.
 
 Пользователи
    ``get_user()``, ``get_users()``, ``fetch_users()``, ``search_by_phone()``,

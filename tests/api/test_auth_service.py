@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import pytest
 
-from pymax.api.auth.enums import ProfileOptions, TwoFactorAction
+import pymax.config as config_module
+from pymax import ExtraConfig
+from pymax.api.auth.enums import AuthType, ProfileOptions, TwoFactorAction
 from pymax.api.session.enums import DeviceType
+from pymax.config import APP_VERSIONS, MIN_PREFERRED_BUILD
+from pymax.fingerprint import FingerprintGenerator
 from pymax.protocol import Opcode
 from pymax.session.models import SessionInfo
+from pymax.types.domain import HandshakeResponse, Login2Flags
 from pymax.types.domain.sync import SyncState
 from tests.conftest import (
     FakeApp,
@@ -26,6 +31,29 @@ class StaticEmailProvider:
     async def get_code(self, email: str) -> str:
         self.emails.append(email)
         return self.code
+
+
+def test_supported_app_versions_match_packaged_fingerprints() -> None:
+    fingerprints = FingerprintGenerator().data
+
+    assert set(fingerprints) == {version for version, _ in APP_VERSIONS}
+    assert all(
+        fingerprints[version]["build_number"] == build_number
+        for version, build_number in APP_VERSIONS
+    )
+
+
+@pytest.mark.parametrize(("roll", "preferred"), [(0.0, True), (0.9, False)])
+def test_generate_user_agent_selects_preferred_and_legacy_versions(
+    monkeypatch: pytest.MonkeyPatch,
+    roll: float,
+    preferred: bool,
+) -> None:
+    monkeypatch.setattr(config_module, "random", lambda: roll)
+
+    user_agent = ExtraConfig().generate_user_agent()
+
+    assert (user_agent.build_number >= MIN_PREFERRED_BUILD) is preferred
 
 
 @pytest.mark.asyncio
@@ -55,7 +83,73 @@ async def test_request_and_send_code_parse_auth_responses() -> None:
         Opcode.AUTH,
     ]
     assert app.calls[0].payload["phone"] == "+79990000000"
+    assert app.calls[0].payload["mode"] == app.fingerprint_generator.generate_fingerprint(
+        version=app.config.device.user_agent.app_version,
+        device_id=app.config.device.device_id,
+        calls_seed=123,
+    )
     assert app.calls[1].payload["verifyCode"] == "111111"
+
+
+@pytest.mark.asyncio
+async def test_web_request_code_omits_mode_without_calls_seed() -> None:
+    app = FakeApp(
+        [
+            frame(
+                {
+                    "token": "sms-token",
+                    "codeLength": 6,
+                    "requestMaxDuration": 60,
+                    "requestCountLeft": 2,
+                    "altActionDuration": 5,
+                }
+            )
+        ],
+        device_type=DeviceType.WEB,
+    )
+    app.handshake_response = HandshakeResponse()
+
+    await app.api.auth.request_code("+79990000000")
+
+    assert app.calls[0].opcode == Opcode.AUTH_REQUEST
+    assert "mode" not in app.calls[0].payload
+
+
+@pytest.mark.asyncio
+async def test_mobile_request_code_requires_calls_seed() -> None:
+    app = FakeApp()
+    app.handshake_response = HandshakeResponse()
+
+    with pytest.raises(ValueError, match="AuthService.request_code"):
+        await app.api.auth.request_code("+79990000000")
+
+    assert app.calls == []
+
+
+@pytest.mark.asyncio
+async def test_mobile_request_code_accepts_zero_calls_seed() -> None:
+    app = FakeApp(
+        [
+            frame(
+                {
+                    "token": "sms-token",
+                    "codeLength": 6,
+                    "requestMaxDuration": 60,
+                    "requestCountLeft": 2,
+                    "altActionDuration": 5,
+                }
+            )
+        ]
+    )
+    app.handshake_response = HandshakeResponse(calls_seed=0)
+
+    await app.api.auth.request_code("+79990000000")
+
+    assert app.calls[0].payload["mode"] == app.fingerprint_generator.generate_fingerprint(
+        version=app.config.device.user_agent.app_version,
+        device_id=app.config.device.device_id,
+        calls_seed=0,
+    )
 
 
 @pytest.mark.asyncio
@@ -93,6 +187,13 @@ async def test_mobile_login_sends_sync_payload_and_persists_updated_session() ->
     assert app.calls[0].opcode == Opcode.LOGIN
     assert app.calls[0].payload["token"] == "local-token"
     assert app.calls[0].payload["userAgent"]["deviceType"] == DeviceType.ANDROID
+    assert app.calls[0].payload[
+        "chatCacheFingerprint"
+    ] == app.fingerprint_generator.generate_fingerprint(
+        version=app.config.device.user_agent.app_version,
+        device_id=app.config.device.device_id,
+        calls_seed=123,
+    )
     assert app.session is not None
     assert app.session.mt_instance_id == "mt-test"
     assert app.session.sync.chats_sync == 777
@@ -108,6 +209,61 @@ async def test_mobile_login_sends_sync_payload_and_persists_updated_session() ->
     assert response.messages[100][0]._actions is app.api.messages
     assert response.contacts[0] is not None
     assert response.contacts[0]._actions is app.api.users
+
+
+@pytest.mark.asyncio
+async def test_mobile_login2_sends_flags_binds_models_and_updates_config_hash() -> None:
+    app = FakeApp(
+        [
+            frame(
+                {
+                    "profile": profile_payload(42),
+                    "contactInfos": [user_payload(43)],
+                    "config": {"hash": "new-hash"},
+                }
+            )
+        ]
+    )
+    app.session = SessionInfo(
+        token="local-token",
+        device_id="device-test",
+        phone="+79990000000",
+        sync=SyncState(
+            chats_sync=1,
+            contacts_sync=2,
+            drafts_sync=3,
+            presence_sync=4,
+            config_hash="old-hash",
+        ),
+    )
+
+    response = await app.api.auth.mobile_login2(
+        Login2Flags(
+            config_enabled=True,
+            contact_enabled=True,
+            profile_enabled=True,
+        )
+    )
+
+    assert app.calls[0].opcode == Opcode.LOGIN2
+    assert app.calls[0].payload == {
+        "needProfile": True,
+        "contactsSync": 2,
+        "configHash": "old-hash",
+    }
+    assert response.profile is not None
+    assert response.profile.contact._actions is app.api.users
+    assert response.contacts[0] is not None
+    assert response.contacts[0]._actions is app.api.users
+    assert app.session is not None
+    assert app.session.sync == SyncState(
+        chats_sync=1,
+        contacts_sync=2,
+        drafts_sync=3,
+        presence_sync=4,
+        config_hash="new-hash",
+    )
+    assert app.store.saved_sessions == [app.session]
 
 
 @pytest.mark.asyncio
@@ -136,6 +292,22 @@ async def test_login_without_session_raises_runtime_error() -> None:
     app = FakeApp()
 
     with pytest.raises(RuntimeError, match="No session available"):
+        await app.api.auth.mobile_login()
+
+    assert app.calls == []
+
+
+@pytest.mark.asyncio
+async def test_mobile_login_requires_calls_seed() -> None:
+    app = FakeApp()
+    app.session = SessionInfo(
+        token="local-token",
+        device_id="device-test",
+        phone="+79990000000",
+    )
+    app.handshake_response = HandshakeResponse()
+
+    with pytest.raises(ValueError, match="AuthService.mobile_login"):
         await app.api.auth.mobile_login()
 
     assert app.calls == []
@@ -252,7 +424,7 @@ async def test_confirm_registration_sends_profile_and_parses_token() -> None:
                 {
                     "userToken": 42,
                     "profile": profile_payload(42),
-                    "tokenType": "REGISTER",
+                    "tokenType": "LOGIN",
                     "token": "registered-token",
                 }
             )
@@ -266,6 +438,7 @@ async def test_confirm_registration_sends_profile_and_parses_token() -> None:
     )
 
     assert result.token == "registered-token"
+    assert result.token_type == AuthType.LOGIN
     assert result.profile.contact.id == 42
     assert app.calls[0].opcode == Opcode.AUTH_CONFIRM
     assert app.calls[0].payload == {

@@ -9,14 +9,14 @@ class BotsMixin(IClientProtocol):
     async def get_bot_init_data(
         self,
         bot_id: int,
-        chat_id: int,
+        chat_id: int | None = None,
         start_param: str | None = None,
     ) -> InitData:
-        """Получает начальные данные для бота в контексте конкретного чата.
+        """Получает начальные данные для запуска бота.
 
         Args:
             bot_id: Идентификатор бота.
-            chat_id: Идентификатор чата, в котором бот будет использоваться.
+            chat_id: Необязательный ID чата, в котором бот будет использоваться.
             start_param: Необязательный параметр, передаваемый при запуске
                 бота.
 

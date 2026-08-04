@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Annotated, Any, TypeAlias
 
 from pydantic import Field, PrivateAttr, model_validator
 
-from pymax.files import File, Photo, Video
+from pymax.files import File, Photo, Video, VideoNote, Voice
 from pymax.types.domain import (
     AudioAttachment,
     CallAttachment,
@@ -14,6 +14,8 @@ from pymax.types.domain import (
     FileAttachment,
     InlineKeyboardAttachment,
     PhotoAttachment,
+    Poll,
+    PollAttachment,
     ShareAttachment,
     StickerAttachment,
     UnknownAttachment,
@@ -38,11 +40,12 @@ KnownAttachment: TypeAlias = Annotated[
     | ControlAttachment
     | InlineKeyboardAttachment
     | ShareAttachment
-    | CallAttachment,
+    | CallAttachment
+    | PollAttachment,
     Field(discriminator="type"),
 ]
 Attachment: TypeAlias = KnownAttachment | UnknownAttachment
-SendAttachment: TypeAlias = Photo | File | Video
+SendAttachment: TypeAlias = Photo | File | Video | Poll | Voice | VideoNote
 SendAttachments: TypeAlias = Sequence[SendAttachment] | None
 
 
@@ -182,22 +185,21 @@ class Message(CamelModel):
 
     async def reply(
         self,
-        text: str,
+        text: str | None = None,
         attachments: SendAttachments = None,
         *,
         notify: bool = True,
-    ) -> Message | None:
+    ) -> Message:
         """Отправляет ответ на это сообщение в тот же чат.
 
         :param text: Текст сообщения.
-        :type text: str
+        :type text: str | None
         :param attachments: Файлы, фотографии или видео для отправки.
         :type attachments: SendAttachments
         :param notify: Отправить ли получателям push-уведомление.
         :type notify: bool
-        :returns: Отправленное сообщение или ``None``, если сервер не вернул
-            его.
-        :rtype: Message | None
+        :returns: Отправленное сообщение.
+        :rtype: Message
         :raises RuntimeError: Если сообщение не привязано к сервису или не
             содержит ``chat_id``.
         """
@@ -213,25 +215,24 @@ class Message(CamelModel):
 
     async def answer(
         self,
-        text: str,
+        text: str | None = None,
         reply_to: int | None = None,
         attachments: SendAttachments = None,
         *,
         notify: bool = True,
-    ) -> Message | None:
+    ) -> Message:
         """Отправляет сообщение в тот же чат.
 
         :param text: Текст сообщения.
-        :type text: str
+        :type text: str | None
         :param reply_to: ID сообщения для ответа.
         :type reply_to: int | None
         :param attachments: Файлы, фотографии или видео для отправки.
         :type attachments: SendAttachments
         :param notify: Отправить ли получателям push-уведомление.
         :type notify: bool
-        :returns: Отправленное сообщение или ``None``, если сервер не вернул
-            его.
-        :rtype: Message | None
+        :returns: Отправленное сообщение.
+        :rtype: Message
         :raises RuntimeError: Если сообщение не привязано к сервису или не
             содержит ``chat_id``.
         """
@@ -250,15 +251,15 @@ class Message(CamelModel):
         chat_id: int,
         *,
         notify: bool = True,
-    ) -> Message | None:
+    ) -> Message:
         """Пересылает это сообщение в другой чат.
 
         :param chat_id: ID целевого чата.
         :type chat_id: int
         :param notify: Отправить ли получателям push-уведомление.
         :type notify: bool
-        :returns: Пересланное сообщение или ``None``, если сервер его не вернул.
-        :rtype: Message | None
+        :returns: Пересланное сообщение.
+        :rtype: Message
         :raises RuntimeError: Если сообщение не привязано к сервису или не
             содержит ``chat_id``.
         """
@@ -291,13 +292,13 @@ class Message(CamelModel):
 
     async def edit(
         self,
-        text: str,
+        text: str | None = None,
         attachments: SendAttachments = None,
     ) -> Message:
         """Редактирует текст и вложения этого сообщения.
 
         :param text: Новый текст сообщения с поддержкой markdown.
-        :type text: str
+        :type text: str | None
         :param attachments: Новые файлы, фотографии или видео для сообщения.
         :type attachments: SendAttachments
         :returns: Отредактированное сообщение.

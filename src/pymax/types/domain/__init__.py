@@ -3,7 +3,8 @@ from .bots import InitData
 from .chat import Chat
 from .error import MaxApiError
 from .folder import Folder, FolderList, FolderUpdate
-from .login import LoginResponse
+from .handshake import HandshakeResponse
+from .login import Login2Flags, Login2Response, LoginResponse
 from .member import Member
 from .message import Message, ReactionCounter, ReactionInfo, ReadState
 from .name import Name

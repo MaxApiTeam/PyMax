@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from pymax.connection.readers.tcp import TCPReader
@@ -62,6 +64,7 @@ class FakeStreamWriter:
     def __init__(self) -> None:
         self.writes: list[bytes] = []
         self.closed = False
+        self.transport = FakeStreamTransport()
 
     def write(self, data: bytes) -> None:
         self.writes.append(data)
@@ -74,6 +77,14 @@ class FakeStreamWriter:
 
     async def wait_closed(self) -> None:
         return None
+
+
+class FakeStreamTransport:
+    def __init__(self) -> None:
+        self.aborted = False
+
+    def abort(self) -> None:
+        self.aborted = True
 
 
 @pytest.mark.asyncio
@@ -98,6 +109,23 @@ async def test_tcp_transport_connect_send_recv_and_close(
     assert writer.writes == [b"hi"]
     assert data == b"xxx"
     assert writer.closed is True
+
+
+@pytest.mark.asyncio
+async def test_tcp_transport_ignores_tls_close_error() -> None:
+    writer = FakeStreamWriter()
+
+    async def wait_closed() -> None:
+        raise OSError("SSL shutdown failed")
+
+    writer.wait_closed = wait_closed
+    transport = TCPTransport("example.test", 443, proxy=None, use_ssl=True)
+    transport._writer = writer
+
+    await transport.close()
+
+    assert writer.closed is True
+    assert writer.transport.aborted is True
 
 
 @pytest.mark.asyncio
@@ -150,11 +178,13 @@ class FakeWebSocket:
         self.close_code = None
         self.sent: list[bytes | str] = []
         self.closed = False
+        self.recv_decode: bool | None = None
 
     async def send(self, data: bytes | str) -> None:
         self.sent.append(data)
 
     async def recv(self, decode=True):
+        self.recv_decode = decode
         return "incoming"
 
     async def close(self) -> None:
@@ -184,4 +214,5 @@ async def test_websocket_transport_connect_send_recv_and_close(
 
     assert ws.sent == ["hello"]
     assert incoming == "incoming"
+    assert ws.recv_decode is False
     assert transport.connected is False
