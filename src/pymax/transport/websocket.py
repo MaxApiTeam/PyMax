@@ -4,6 +4,10 @@ from websockets.asyncio import client
 from pymax.logging import get_logger
 
 from .base import Transport
+import ssl
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
 
 logger = get_logger(__name__)
 
@@ -17,11 +21,11 @@ class WebSocketTransport(Transport):
     async def connect(self) -> None:
         if self.proxy:
             self.ws = await client.connect(
-                self.url, origin=Origin("https://web.max.ru"), proxy=self.proxy
+                self.url, origin=Origin("https://web.max.ru"), proxy=self.proxy, ssl=ssl_context,
             )
         else:
             self.ws = await client.connect(
-                self.url, origin=Origin("https://web.max.ru")
+                self.url, origin=Origin("https://web.max.ru"), ssl=ssl_context,
             )  # TODO: origin should be configurable
 
     async def close(self) -> None:
