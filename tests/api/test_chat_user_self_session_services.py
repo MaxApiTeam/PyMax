@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from pymax import PrivacyAccess, PrivacySettingsUpdate
 from pymax.api.session.enums import DeviceType
 from pymax.exceptions import PyMaxError
 from pymax.protocol import Opcode
@@ -363,6 +364,40 @@ async def test_self_service_change_profile_and_close_all_sessions() -> None:
         Opcode.PROFILE,
         Opcode.SESSIONS_CLOSE,
     ]
+
+
+@pytest.mark.asyncio
+async def test_change_profile_settings_updates_privacy_and_saved_config_hash() -> None:
+    app = FakeApp([frame({"hash": "new-config-hash"})])
+    app.session = SessionInfo(token="token", device_id="dev", phone="+7")
+
+    result = await app.api.account.change_profile_settings(
+        PrivacySettingsUpdate(
+            search_by_phone=PrivacyAccess.CONTACTS,
+            incoming_calls=PrivacyAccess.ALL,
+            chat_invites=PrivacyAccess.NOBODY,
+            phone_number_visibility=PrivacyAccess.CONTACTS,
+            hide_online_status=True,
+            safe_content_only=True,
+        )
+    )
+
+    assert result is True
+    assert app.calls[0].opcode == Opcode.CONFIG
+    assert app.calls[0].payload == {
+        "settings": {
+            "user": {
+                "SEARCH_BY_PHONE": "CONTACTS",
+                "INCOMING_CALL": "ALL",
+                "CHATS_INVITE": "_NONE_",
+                "PHONE_NUMBER_PRIVACY": "CONTACTS",
+                "HIDDEN": True,
+                "CONTENT_LEVEL_ACCESS": True,
+            }
+        }
+    }
+    assert app.session.sync.config_hash == "new-config-hash"
+    assert app.store.saved_sessions == [app.session]
 
 
 @pytest.mark.asyncio

@@ -18,9 +18,12 @@ from pymax.types.domain import FolderList, FolderUpdate, Profile
 from .enums import SelfPayloadKey
 from .payloads import (
     ChangeProfilePayload,
+    ChangeProfileSettings,
+    ChangeProfileSettingsPayload,
     CreateFolderPayload,
     DeleteFolderPayload,
     GetFolderPayload,
+    PrivacySettingsUpdate,
     UpdateFolderPayload,
     UploadPayload,
 )
@@ -154,3 +157,33 @@ class SelfService:
     def set_presence(self, online: bool) -> None:
         logger.info("setting presence to %s", "online" if online else "offline")
         self.app.config.interactive = online
+
+    async def change_profile_settings(self, settings: PrivacySettingsUpdate) -> bool:
+        logger.info("changing profile settings")
+
+        frame = ChangeProfileSettingsPayload(settings=ChangeProfileSettings(user=settings))
+
+        response = await self.app.invoke(
+            Opcode.CONFIG,
+            frame.to_payload(),
+        )
+        session = self.app.session
+
+        if not session:
+            logger.warning("no session found, skipping sync update")
+            return True
+
+        sync = session.sync.model_copy(
+            update={"config_hash": require_payload_item(response, SelfPayloadKey.HASH)}
+        )
+
+        updated = session.model_copy(
+            update={
+                "mt_instance_id": self.app.config.device.mt_instance_id,
+                "sync": sync,
+            },
+        )
+        self.app.session = updated
+        await self.app.store.save_session(updated)
+
+        return True

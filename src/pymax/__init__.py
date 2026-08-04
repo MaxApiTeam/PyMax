@@ -1,6 +1,7 @@
 __version__ = "2.4.0"
 
 
+from .api.self import PrivacyAccess, PrivacySettingsUpdate
 from .auth import (
     AuthFlow,
     ConsolePasswordProvider,
@@ -52,6 +53,8 @@ __all__ = (
     "Photo",
     "PresenceEvent",
     "Profile",
+    "PrivacyAccess",
+    "PrivacySettingsUpdate",
     "PyMaxError",
     "QrAuthFlow",
     "QrHandler",

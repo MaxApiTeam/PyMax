@@ -1,5 +1,6 @@
 from typing import Any
 
+from pymax.api.self import PrivacySettingsUpdate
 from pymax.files import Photo
 from pymax.types import FolderList, FolderUpdate
 
@@ -145,3 +146,14 @@ class SelfMixin(IClientProtocol):
                 ``False``.
         """
         self._app.api.account.set_presence(online)
+
+    async def change_profile_settings(self, settings: PrivacySettingsUpdate) -> bool:
+        """Обновляет настройки приватности текущего аккаунта.
+
+        Args:
+            settings: Объект с новыми настройками приватности.
+
+        Returns:
+            ``True``, если сервер принял запрос.
+        """
+        return await self._app.api.account.change_profile_settings(settings=settings)
