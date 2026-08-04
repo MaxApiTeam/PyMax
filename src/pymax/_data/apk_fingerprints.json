@@ -542,5 +542,141 @@
       "x86_64": "bb097419b05e41eba460d4d1041ec660cc5baa28cbb0e287deb05bf27549e8ca"
     },
     "build_number": 6763
+  },
+  "26.22.0": {
+    "signature_scheme": "v2",
+    "certificate_count": 1,
+    "certificate_meta_sha256": "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93",
+    "certificate_sha256": [
+      "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93"
+    ],
+    "dex_meta_sha256": "2cb7a73826370a9d19687d2c431335a4f512336fe5878db018746def973b2501",
+    "so_meta_sha256_arm64_v8a": "e7871f948c8507284b09642372c40324498acdf2180a55643eca1bd66755375f",
+    "so_meta_sha256": {
+      "arm64-v8a": "e7871f948c8507284b09642372c40324498acdf2180a55643eca1bd66755375f",
+      "armeabi-v7a": "b4818fc95cd46d9bf0700adcd97dd49db67a4fcfed88d2ff181c16fd69f5d3db",
+      "x86": "b3c699608d9aadc3bf5360b99048ad41507c2ba23d5bfad6d8cfb19ef435efd3",
+      "x86_64": "8c6bad639bd1db5814200d75bbdf508bb0bb577b60dce5b4ca2961b63544b608"
+    },
+    "build_number": 6770
+  },
+  "26.22.1": {
+    "signature_scheme": "v3",
+    "certificate_count": 1,
+    "certificate_meta_sha256": "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93",
+    "certificate_sha256": [
+      "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93"
+    ],
+    "dex_meta_sha256": "4f043b856af584c701a42ffd28e6b6f8a78fdb6d266e907a12d45de2d9596fdd",
+    "so_meta_sha256_arm64_v8a": "634ecc42b246784d975f180b4fecf903df235cdf0476da47163a85630eb1a6a8",
+    "so_meta_sha256": {
+      "arm64-v8a": "634ecc42b246784d975f180b4fecf903df235cdf0476da47163a85630eb1a6a8",
+      "armeabi-v7a": "042220bdd481a280d2c1f4f6827f0e4fab7bca61e5af0f6035a0d191aed1350c",
+      "x86": "deffe34d2a9d83584e02cbb3f22ba5a6dbe1b065dbc8a8ea8ca908dae865c5f6",
+      "x86_64": "251b88c27a1c055f27adc110e44a75a1c60408b0d5e20e3844f816aa227212a3"
+    },
+    "build_number": 6772
+  },
+  "26.22.2": {
+    "signature_scheme": "v2",
+    "certificate_count": 1,
+    "certificate_meta_sha256": "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93",
+    "certificate_sha256": [
+      "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93"
+    ],
+    "dex_meta_sha256": "91e5fa68c7b36ac910e51b77d7d96fb82d16fcab38f41adbafd3e0926797f178",
+    "so_meta_sha256_arm64_v8a": "e7871f948c8507284b09642372c40324498acdf2180a55643eca1bd66755375f",
+    "so_meta_sha256": {
+      "arm64-v8a": "e7871f948c8507284b09642372c40324498acdf2180a55643eca1bd66755375f",
+      "armeabi-v7a": "b4818fc95cd46d9bf0700adcd97dd49db67a4fcfed88d2ff181c16fd69f5d3db",
+      "x86": "b3c699608d9aadc3bf5360b99048ad41507c2ba23d5bfad6d8cfb19ef435efd3",
+      "x86_64": "8c6bad639bd1db5814200d75bbdf508bb0bb577b60dce5b4ca2961b63544b608"
+    },
+    "build_number": 6773
+  },
+  "26.23.0": {
+    "signature_scheme": "v2",
+    "certificate_count": 1,
+    "certificate_meta_sha256": "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93",
+    "certificate_sha256": [
+      "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93"
+    ],
+    "dex_meta_sha256": "49f6cba7368ce7be0179278429c658de043ee94a347d83bb4a0f0163e4a10bff",
+    "so_meta_sha256_arm64_v8a": "e7871f948c8507284b09642372c40324498acdf2180a55643eca1bd66755375f",
+    "so_meta_sha256": {
+      "arm64-v8a": "e7871f948c8507284b09642372c40324498acdf2180a55643eca1bd66755375f",
+      "armeabi-v7a": "b4818fc95cd46d9bf0700adcd97dd49db67a4fcfed88d2ff181c16fd69f5d3db",
+      "x86": "b3c699608d9aadc3bf5360b99048ad41507c2ba23d5bfad6d8cfb19ef435efd3",
+      "x86_64": "8c6bad639bd1db5814200d75bbdf508bb0bb577b60dce5b4ca2961b63544b608"
+    },
+    "build_number": 6777
+  },
+  "26.23.1": {
+    "signature_scheme": "v3",
+    "certificate_count": 1,
+    "certificate_meta_sha256": "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93",
+    "certificate_sha256": [
+      "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93"
+    ],
+    "dex_meta_sha256": "53f15791a9ff7ac75a45b9df132c910eb2e3081c66f06fb97f0d7c1c976fab78",
+    "so_meta_sha256_arm64_v8a": "634ecc42b246784d975f180b4fecf903df235cdf0476da47163a85630eb1a6a8",
+    "so_meta_sha256": {
+      "arm64-v8a": "634ecc42b246784d975f180b4fecf903df235cdf0476da47163a85630eb1a6a8",
+      "armeabi-v7a": "042220bdd481a280d2c1f4f6827f0e4fab7bca61e5af0f6035a0d191aed1350c",
+      "x86": "deffe34d2a9d83584e02cbb3f22ba5a6dbe1b065dbc8a8ea8ca908dae865c5f6",
+      "x86_64": "251b88c27a1c055f27adc110e44a75a1c60408b0d5e20e3844f816aa227212a3"
+    },
+    "build_number": 6778
+  },
+  "26.23.2": {
+    "signature_scheme": "v3",
+    "certificate_count": 1,
+    "certificate_meta_sha256": "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93",
+    "certificate_sha256": [
+      "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93"
+    ],
+    "dex_meta_sha256": "38cff46f392dc1734c308be011c2f0d8da152a390b41063dbb2c913e3032f4b3",
+    "so_meta_sha256_arm64_v8a": "634ecc42b246784d975f180b4fecf903df235cdf0476da47163a85630eb1a6a8",
+    "so_meta_sha256": {
+      "arm64-v8a": "634ecc42b246784d975f180b4fecf903df235cdf0476da47163a85630eb1a6a8",
+      "armeabi-v7a": "042220bdd481a280d2c1f4f6827f0e4fab7bca61e5af0f6035a0d191aed1350c",
+      "x86": "deffe34d2a9d83584e02cbb3f22ba5a6dbe1b065dbc8a8ea8ca908dae865c5f6",
+      "x86_64": "251b88c27a1c055f27adc110e44a75a1c60408b0d5e20e3844f816aa227212a3"
+    },
+    "build_number": 6779
+  },
+  "26.24.0": {
+    "signature_scheme": "v2",
+    "certificate_count": 1,
+    "certificate_meta_sha256": "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93",
+    "certificate_sha256": [
+      "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93"
+    ],
+    "dex_meta_sha256": "73e8434d6524c3b6d7a90b63598befcf21f2d3b304e9ef3da153ac5bcbebdd99",
+    "so_meta_sha256_arm64_v8a": "e7871f948c8507284b09642372c40324498acdf2180a55643eca1bd66755375f",
+    "so_meta_sha256": {
+      "arm64-v8a": "e7871f948c8507284b09642372c40324498acdf2180a55643eca1bd66755375f",
+      "armeabi-v7a": "b4818fc95cd46d9bf0700adcd97dd49db67a4fcfed88d2ff181c16fd69f5d3db",
+      "x86": "b3c699608d9aadc3bf5360b99048ad41507c2ba23d5bfad6d8cfb19ef435efd3",
+      "x86_64": "8c6bad639bd1db5814200d75bbdf508bb0bb577b60dce5b4ca2961b63544b608"
+    },
+    "build_number": 6784
+  },
+  "26.25.0": {
+    "signature_scheme": "v3",
+    "certificate_count": 1,
+    "certificate_meta_sha256": "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93",
+    "certificate_sha256": [
+      "1684414033eb263e2c615f8b7df5ed8793850a07656304997fbf07e9e21e1e93"
+    ],
+    "dex_meta_sha256": "8db68fcc0e85e8f041fe4a875c0a9bcfe542a8f679603728c651ed81b64dd684",
+    "so_meta_sha256_arm64_v8a": "634ecc42b246784d975f180b4fecf903df235cdf0476da47163a85630eb1a6a8",
+    "so_meta_sha256": {
+      "arm64-v8a": "634ecc42b246784d975f180b4fecf903df235cdf0476da47163a85630eb1a6a8",
+      "armeabi-v7a": "042220bdd481a280d2c1f4f6827f0e4fab7bca61e5af0f6035a0d191aed1350c",
+      "x86": "deffe34d2a9d83584e02cbb3f22ba5a6dbe1b065dbc8a8ea8ca908dae865c5f6",
+      "x86_64": "251b88c27a1c055f27adc110e44a75a1c60408b0d5e20e3844f816aa227212a3"
+    },
+    "build_number": 6790
   }
 }

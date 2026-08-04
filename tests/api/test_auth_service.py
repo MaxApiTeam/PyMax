@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import pytest
 
+import pymax.config as config_module
+from pymax import ExtraConfig
 from pymax.api.auth.enums import AuthType, ProfileOptions, TwoFactorAction
 from pymax.api.session.enums import DeviceType
+from pymax.config import APP_VERSIONS, MIN_PREFERRED_BUILD
+from pymax.fingerprint import FingerprintGenerator
 from pymax.protocol import Opcode
 from pymax.session.models import SessionInfo
 from pymax.types.domain import HandshakeResponse, Login2Flags
@@ -27,6 +31,29 @@ class StaticEmailProvider:
     async def get_code(self, email: str) -> str:
         self.emails.append(email)
         return self.code
+
+
+def test_supported_app_versions_match_packaged_fingerprints() -> None:
+    fingerprints = FingerprintGenerator().data
+
+    assert set(fingerprints) == {version for version, _ in APP_VERSIONS}
+    assert all(
+        fingerprints[version]["build_number"] == build_number
+        for version, build_number in APP_VERSIONS
+    )
+
+
+@pytest.mark.parametrize(("roll", "preferred"), [(0.0, True), (0.9, False)])
+def test_generate_user_agent_selects_preferred_and_legacy_versions(
+    monkeypatch: pytest.MonkeyPatch,
+    roll: float,
+    preferred: bool,
+) -> None:
+    monkeypatch.setattr(config_module, "random", lambda: roll)
+
+    user_agent = ExtraConfig().generate_user_agent()
+
+    assert (user_agent.build_number >= MIN_PREFERRED_BUILD) is preferred
 
 
 @pytest.mark.asyncio

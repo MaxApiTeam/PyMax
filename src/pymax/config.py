@@ -1,4 +1,4 @@
-from random import choice, randint
+from random import choice, randint, random
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -11,7 +11,16 @@ from pymax.api.session.payloads import (
 from pymax.session import StoreProtocol
 from pymax.types.domain.sync import SyncOverrides
 
+MIN_PREFERRED_BUILD = 6712
 APP_VERSIONS: tuple[tuple[str, int], ...] = (
+    ("26.25.0", 6790),
+    ("26.24.0", 6784),
+    ("26.23.2", 6779),
+    ("26.23.1", 6778),
+    ("26.23.0", 6777),
+    ("26.22.2", 6773),
+    ("26.22.1", 6772),
+    ("26.22.0", 6770),
     ("26.21.1", 6763),
     ("26.20.2", 6758),
     ("26.20.1", 6740),
@@ -95,8 +104,11 @@ LOCALE_TIMEZONES: tuple[tuple[str, str], ...] = (
     ("ru", "Asia/Yakutsk"),
     ("ru", "Asia/Vladivostok"),
 )
-WEB_APP_VERSION = "26.5.5"
+WEB_APP_VERSION = "26.7.15"
 WEB_SCREEN = "1080x1920 1.0x"
+
+PREFERRED_VERSION = [version for version in APP_VERSIONS if version[1] >= MIN_PREFERRED_BUILD]
+LEGACY_VERSIONS = [version for version in APP_VERSIONS if version[1] < MIN_PREFERRED_BUILD]
 
 
 class DeviceConfig(BaseModel):
@@ -225,7 +237,8 @@ class ExtraConfig(BaseModel):
         Returns:
             Случайная, но правдоподобная конфигурация Android-клиента Max.
         """
-        app_version, build_number = choice(APP_VERSIONS)
+        versions = PREFERRED_VERSION if random() < 0.9 else LEGACY_VERSIONS
+        app_version, build_number = choice(versions)
         device_name, os_version, screen, arch = choice(ANDROID_DEVICES)
         locale, timezone = choice(LOCALE_TIMEZONES)
 
