@@ -5,6 +5,7 @@ Python-библиотека для Max API.
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Package](https://img.shields.io/badge/package-maxapi--python-orange.svg)](https://pypi.org/project/maxapi-python/)
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/maxapi-python?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/maxapi-python)
 
 > [!WARNING]
 > PyMax использует неофициальный внутренний API Max. API может измениться без
