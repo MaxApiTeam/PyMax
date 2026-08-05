@@ -5,6 +5,7 @@ import inspect
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
+from pymax.filters import Filter
 from pymax.logging import get_logger
 from pymax.protocol import InboundFrame
 from pymax.types import Chat, MessageDeleteEvent
@@ -26,7 +27,6 @@ from .router import (
     ErrorEntry,
     ErrorScope,
     ErrorSource,
-    FilterCallback,
     HandlerCallback,
     HandlerDecorator,
     HandlerEntry,
@@ -45,6 +45,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 ClientT = TypeVar("ClientT", bound="BaseClient")
+EventT = TypeVar("EventT")
 
 
 class Dispatcher(Generic[ClientT]):
@@ -70,7 +71,7 @@ class Dispatcher(Generic[ClientT]):
     def on_internal(
         self,
         event: EventType,
-        *filters: FilterCallback[Any],
+        *filters: Filter[Any, ClientT],
     ) -> HandlerDecorator[Any, ClientT]:
         logger.debug(
             "registering internal handler event=%s filters=%s",
@@ -82,7 +83,7 @@ class Dispatcher(Generic[ClientT]):
     def on(
         self,
         event: EventType,
-        *filters: FilterCallback[Any],
+        *filters: Filter[Any, ClientT],
     ) -> HandlerDecorator[Any, ClientT]:
         logger.debug("registering handler event=%s filters=%s", event, len(filters))
         return self.root_router.on(event, *filters)
@@ -96,57 +97,57 @@ class Dispatcher(Generic[ClientT]):
 
     def on_message(
         self,
-        *filters: FilterCallback[Message],
+        *filters: Filter[Message, ClientT],
     ) -> HandlerDecorator[Message, ClientT]:
         logger.debug("registering message handler filters=%s", len(filters))
         return self.root_router.on_message(*filters)
 
     def on_message_edit(
         self,
-        *filters: FilterCallback[Message],
+        *filters: Filter[Message, ClientT],
     ) -> HandlerDecorator[Message, ClientT]:
         logger.debug("registering message edit handler filters=%s", len(filters))
         return self.root_router.on_message_edit(*filters)
 
     def on_message_delete(
         self,
-        *filters: FilterCallback[MessageDeleteEvent],
+        *filters: Filter[MessageDeleteEvent, ClientT],
     ) -> HandlerDecorator[MessageDeleteEvent, ClientT]:
         return self.root_router.on_message_delete(*filters)
 
     def on_message_read(
         self,
-        *filters: FilterCallback[MessageReadEvent],
+        *filters: Filter[MessageReadEvent, ClientT],
     ) -> HandlerDecorator[MessageReadEvent, ClientT]:
         return self.root_router.on_message_read(*filters)
 
     def on_typing(
         self,
-        *filters: FilterCallback[TypingEvent],
+        *filters: Filter[TypingEvent, ClientT],
     ) -> HandlerDecorator[TypingEvent, ClientT]:
         return self.root_router.on_typing(*filters)
 
     def on_presence(
         self,
-        *filters: FilterCallback[PresenceEvent],
+        *filters: Filter[PresenceEvent, ClientT],
     ) -> HandlerDecorator[PresenceEvent, ClientT]:
         return self.root_router.on_presence(*filters)
 
     def on_reaction_update(
         self,
-        *filters: FilterCallback[ReactionUpdateEvent],
+        *filters: Filter[ReactionUpdateEvent, ClientT],
     ) -> HandlerDecorator[ReactionUpdateEvent, ClientT]:
         return self.root_router.on_reaction_update(*filters)
 
     def on_chat_update(
         self,
-        *filters: FilterCallback[Chat],
+        *filters: Filter[Chat, ClientT],
     ) -> HandlerDecorator[Chat, ClientT]:
         return self.root_router.on_chat_update(*filters)
 
     def on_raw(
         self,
-        *filters: FilterCallback[InboundFrame],
+        *filters: Filter[InboundFrame, ClientT],
     ) -> HandlerDecorator[InboundFrame, ClientT]:
         return self.root_router.on_raw(*filters)
 
@@ -279,9 +280,11 @@ class Dispatcher(Generic[ClientT]):
         event: Any,
     ) -> bool:
         for flt in entry.filters:
-            result = flt(event)
-            if inspect.isawaitable(result):
-                result = await result
+            if not self.client:
+                return False
+            filter_match = flt(event, self.client)
+            result = await flt.resolve_filter_result(filter_match)
+
             if not result:
                 logger.debug(
                     "handler skipped by filter callback=%s",
