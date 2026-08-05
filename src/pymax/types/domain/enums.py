@@ -22,3 +22,8 @@ class MessageStatus(str, Enum):
 
     EDITED = "EDITED"
     REMOVED = "REMOVED"
+
+
+class LinkType(str, Enum):
+    REPLY = "REPLY"
+    FORWARD = "FORWARD"

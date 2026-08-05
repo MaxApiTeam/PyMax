@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Annotated, Any, TypeAlias
+from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeAlias
 
 from pydantic import Field, PrivateAttr, model_validator
 
@@ -24,7 +24,7 @@ from pymax.types.domain import (
 
 from .base import CamelModel
 from .element import Element
-from .enums import MessageStatus
+from .enums import LinkType, MessageStatus
 
 if TYPE_CHECKING:
     from pymax.api.messages.service import MessageService
@@ -47,6 +47,24 @@ KnownAttachment: TypeAlias = Annotated[
 Attachment: TypeAlias = KnownAttachment | UnknownAttachment
 SendAttachment: TypeAlias = Photo | File | Video | Poll | Voice | VideoNote
 SendAttachments: TypeAlias = Sequence[SendAttachment] | None
+
+
+class MessageLink(CamelModel):
+    message: Message
+    chat_id: int
+
+
+class ReplyLink(MessageLink):
+    type: Literal[LinkType.REPLY] = LinkType.REPLY
+    message: Message
+    chat_id: int
+
+
+class ForwardLink(MessageLink):
+    type: Literal[LinkType.FORWARD] = LinkType.FORWARD
+
+
+Link: TypeAlias = Annotated[ReplyLink | ForwardLink, Field(discriminator="type")]
 
 
 class ReactionCounter(CamelModel):
@@ -158,6 +176,7 @@ class Message(CamelModel):
     text: str = ""
     time: int
     type: str
+    link: Link | None = None
     cid: int | None = None
     attaches: list[Attachment] = Field(default_factory=list)
     stats: dict[str, Any] | None = None
