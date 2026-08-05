@@ -8,6 +8,7 @@ from uuid import uuid4
 from pymax.dispatch import ErrorScope, Router
 from pymax.dispatch.router import DisconnectDecorator, ErrorDecorator
 from pymax.exceptions import ApiError
+from pymax.filters import Filter
 from pymax.infra import BaseMixin
 from pymax.logging import get_logger
 
@@ -19,7 +20,6 @@ if TYPE_CHECKING:
     from pymax.auth import AuthFlow
     from pymax.connection import ConnectionManager
     from pymax.dispatch.router import (
-        FilterCallback,
         HandlerDecorator,
         StartDecorator,
     )
@@ -196,63 +196,63 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
 
     def on_message(
         self,
-        *filters: FilterCallback[Message],
+        *filters: Filter[Message, ClientT],
     ) -> HandlerDecorator[Message, ClientT]:
         """Регистрирует обработчик новых сообщений."""
         return self._router.on_message(*filters)
 
     def on_message_edit(
         self,
-        *filters: FilterCallback[Message],
+        *filters: Filter[Message, ClientT],
     ) -> HandlerDecorator[Message, ClientT]:
         """Регистрирует обработчик редактирования сообщений."""
         return self._router.on_message_edit(*filters)
 
     def on_message_delete(
         self,
-        *filters: FilterCallback[MessageDeleteEvent],
+        *filters: Filter[MessageDeleteEvent, ClientT],
     ) -> HandlerDecorator[MessageDeleteEvent, ClientT]:
         """Регистрирует обработчик удаления сообщений."""
         return self._router.on_message_delete(*filters)
 
     def on_message_read(
         self,
-        *filters: FilterCallback[MessageReadEvent],
+        *filters: Filter[MessageReadEvent, ClientT],
     ) -> HandlerDecorator[MessageReadEvent, ClientT]:
         """Регистрирует обработчик изменения отметки прочтения."""
         return self._router.on_message_read(*filters)
 
     def on_typing(
         self,
-        *filters: FilterCallback[TypingEvent],
+        *filters: Filter[TypingEvent, ClientT],
     ) -> HandlerDecorator[TypingEvent, ClientT]:
         """Регистрирует обработчик набора текста."""
         return self._router.on_typing(*filters)
 
     def on_presence(
         self,
-        *filters: FilterCallback[PresenceEvent],
+        *filters: Filter[PresenceEvent, ClientT],
     ) -> HandlerDecorator[PresenceEvent, ClientT]:
         """Регистрирует обработчик изменения присутствия пользователя."""
         return self._router.on_presence(*filters)
 
     def on_reaction_update(
         self,
-        *filters: FilterCallback[ReactionUpdateEvent],
+        *filters: Filter[ReactionUpdateEvent, ClientT],
     ) -> HandlerDecorator[ReactionUpdateEvent, ClientT]:
         """Регистрирует обработчик обновления реакций сообщения."""
         return self._router.on_reaction_update(*filters)
 
     def on_chat_update(
         self,
-        *filters: FilterCallback[Chat],
+        *filters: Filter[Chat, ClientT],
     ) -> HandlerDecorator[Chat, ClientT]:
         """Регистрирует обработчик обновления чата."""
         return self._router.on_chat_update(*filters)
 
     def on_raw(
         self,
-        *filters: FilterCallback[InboundFrame],
+        *filters: Filter[InboundFrame, ClientT],
     ) -> HandlerDecorator[InboundFrame, ClientT]:
         """Регистрирует обработчик исходных входящих frame-ов."""
         return self._router.on_raw(*filters)

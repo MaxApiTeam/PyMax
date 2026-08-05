@@ -4,6 +4,7 @@ import pytest
 
 from pymax.dispatch import Dispatcher, Router
 from pymax.dispatch.enums import EventType
+from pymax.filters import F
 from pymax.protocol import Command, Opcode
 from tests.conftest import FakeApp, chat_payload, frame, message_payload
 
@@ -16,10 +17,10 @@ async def test_dispatcher_routes_message_events_through_filters_and_raw_handler(
     dispatcher.bind_client("client")
     seen: list[tuple[str, int | str]] = []
 
-    def is_start(message):
+    def is_start(message, _client):
         return message.text == "/start"
 
-    async def has_chat(message):
+    def has_chat(message, _client):
         return message.chat_id == 100
 
     @router.on_message(is_start, has_chat)
@@ -42,6 +43,29 @@ async def test_dispatcher_routes_message_events_through_filters_and_raw_handler(
         ("client", 1),
         ("client", f"raw:{int(Opcode.NOTIF_MESSAGE)}"),
     ]
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_evaluates_all_magic_filters() -> None:
+    app = FakeApp()
+    router: Router[str] = Router()
+    dispatcher: Dispatcher[str] = Dispatcher(app, router)
+    dispatcher.bind_client("client")
+    seen: list[int] = []
+
+    @router.on_message(F.message.text.contains("start"), F.message.chat_id == 200)
+    async def on_message(message, _client):
+        seen.append(message.id)
+
+    await dispatcher.dispatch(
+        frame(
+            {"chatId": 100, "message": message_payload(1, 100, "/start")},
+            opcode=Opcode.NOTIF_MESSAGE,
+            cmd=Command.REQUEST,
+        )
+    )
+
+    assert seen == []
 
 
 @pytest.mark.asyncio
