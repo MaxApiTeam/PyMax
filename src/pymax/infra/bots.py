@@ -1,3 +1,4 @@
+from pymax.types import ButtonType, CallbackResponse
 from pymax.types.domain import InitData
 
 from .protocol import IClientProtocol
@@ -31,3 +32,11 @@ class BotsMixin(IClientProtocol):
             chat_id=chat_id,
             start_param=start_param,
         )
+
+    async def send_callback(
+        self,
+        callback_id: str,
+        type: ButtonType,
+        payload: str | None = None,
+    ) -> CallbackResponse:
+        return await self._app.api.bots.send_callback(callback_id, type, payload)

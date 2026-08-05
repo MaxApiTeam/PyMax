@@ -50,6 +50,11 @@ SendAttachments: TypeAlias = Sequence[SendAttachment] | None
 Link: TypeAlias = Annotated["ReplyLink | ForwardLink", Field(discriminator="type")]
 
 
+class MessageLink(CamelModel):
+    message: Message
+    chat_id: int
+
+
 class ReactionCounter(CamelModel):
     """Счетчик одной реакции на сообщение.
 
@@ -98,7 +103,7 @@ class DelayedAttributes(CamelModel):
     notify_opponents: bool
 
 
-class ReplyLink(CamelModel):
+class ReplyLink(MessageLink):
     """Источник сообщения, отправленного как reply.
 
     :ivar message: Сообщение, на которое ответили.
@@ -112,7 +117,7 @@ class ReplyLink(CamelModel):
     chat_id: int
 
 
-class ForwardLink(CamelModel):
+class ForwardLink(MessageLink):
     """Источник пересланного сообщения.
 
     Помимо исходного сообщения содержит доступные в payload-е имя, ссылку,
