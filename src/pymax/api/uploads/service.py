@@ -243,7 +243,7 @@ class UploadService:
         loop = asyncio.get_running_loop()
         future: asyncio.Future[AudioUploadSignal] = loop.create_future()
 
-        timeout = aiohttp.ClientTimeout(total=900, sock_read=60)
+        timeout = aiohttp.ClientTimeout(total=self.app.config.upload_timeout, sock_read=60)
 
         video_id = upload_info.video_id
         token = upload_info.token
@@ -366,7 +366,7 @@ class UploadService:
             file_size,
         )
 
-        timeout = aiohttp.ClientTimeout(total=900, sock_read=60)
+        timeout = aiohttp.ClientTimeout(total=self.app.config.upload_timeout, sock_read=60)
 
         headers = {
             "Content-Disposition": f"attachment; filename={quote(uploadable_video.name)}",
@@ -532,51 +532,51 @@ class UploadService:
 
         file_id = upload_info.file_id
 
+        timeout = aiohttp.ClientTimeout(total=self.app.config.upload_timeout, sock_read=60)
+
         self.file_upload_waiters[file_id] = future
         logger.debug("File upload waiter registered file_id=%s", file_id)
 
         try:
-            async with aiohttp.ClientSession(
-                proxy=self.app.config.proxy,
-            ) as session:
-                async with session.post(
+            async with (
+                aiohttp.ClientSession(proxy=self.app.config.proxy, timeout=timeout) as session,
+                session.post(
                     url=upload_info.url,
                     headers=headers,
                     data=file.iter_chunks(1024 * 1024),
-                ) as response:
-                    logger.debug(
-                        "File upload HTTP response status=%s file_id=%s",
+                ) as response,
+            ):
+                logger.debug(
+                    "File upload HTTP response status=%s file_id=%s",
+                    response.status,
+                    file_id,
+                )
+
+                if response.status != HTTPStatus.OK:
+                    logger.error(
+                        "File upload failed with status %s file_id=%s",
                         response.status,
                         file_id,
                     )
+                    raise UploadError(
+                        f"File upload failed with status {response.status} file_id={file_id}"
+                    )
 
-                    if response.status != HTTPStatus.OK:
-                        logger.error(
-                            "File upload failed with status %s file_id=%s",
-                            response.status,
-                            file_id,
-                        )
-                        raise UploadError(
-                            f"File upload failed with status {response.status} file_id={file_id}"
-                        )
+                try:
+                    logger.debug(
+                        "Waiting for file processing notification file_id=%s",
+                        file_id,
+                    )
+                    await asyncio.wait_for(future, 60)
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "Timed out waiting for file processing notification file_id=%s",
+                        file_id,
+                    )
+                    raise UploadError(f"Timed out waiting for file processing file_id={file_id}")
 
-                    try:
-                        logger.debug(
-                            "Waiting for file processing notification file_id=%s",
-                            file_id,
-                        )
-                        await asyncio.wait_for(future, 60)
-                    except asyncio.TimeoutError:
-                        logger.warning(
-                            "Timed out waiting for file processing notification file_id=%s",
-                            file_id,
-                        )
-                        raise UploadError(
-                            f"Timed out waiting for file processing file_id={file_id}"
-                        )
-
-                    logger.debug("File upload complete file_id=%s", file_id)
-                    return AttachFilePayload(file_id=file_id)
+                logger.debug("File upload complete file_id=%s", file_id)
+                return AttachFilePayload(file_id=file_id)
 
         except UploadError:
             raise

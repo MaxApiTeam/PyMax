@@ -143,6 +143,7 @@ class ClientConfig(BaseModel):
     token: str | None = None
     proxy: str | None = None
     registration_config: RegistrationConfig | None = None
+    upload_timeout: int = 900
 
     host: str = "api.oneme.ru"
     port: int = 443
@@ -181,6 +182,7 @@ class ExtraConfig(BaseModel):
         proxy: Proxy URL для TCP- или WebSocket-транспорта.
         reconnect: Переподключаться после сетевых ошибок.
         reconnect_delay: Пауза перед reconnect.
+        upload_timeout: Timeout загрузки файлов в секундах.
         device_id: Явный device ID. Если не передан, генерируется UUID.
         device_type: Тип устройства для mobile user-agent.
         user_agent: Полностью заданный user-agent payload.
@@ -217,6 +219,7 @@ class ExtraConfig(BaseModel):
     proxy: str | None = None
     reconnect: bool = True
     reconnect_delay: float = 1.0
+    upload_timeout: int = 900
 
     device_id: str | None = None
     device_type: DeviceType = DeviceType.ANDROID
