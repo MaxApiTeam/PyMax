@@ -104,6 +104,7 @@ class RuntimeClient(BaseClient["RuntimeClient"]):
         self.extra_config = SimpleNamespace(
             reconnect=False,
             reconnect_delay=0,
+            relogin=True,
             token=app.config.token,
         )
 

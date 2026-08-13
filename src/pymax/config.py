@@ -144,6 +144,7 @@ class ClientConfig(BaseModel):
     proxy: str | None = None
     registration_config: RegistrationConfig | None = None
     upload_timeout: int = 900
+    relogin: bool = True
 
     host: str = "api.oneme.ru"
     port: int = 443
@@ -220,6 +221,7 @@ class ExtraConfig(BaseModel):
     reconnect: bool = True
     reconnect_delay: float = 1.0
     upload_timeout: int = 900
+    relogin: bool = True
 
     device_id: str | None = None
     device_type: DeviceType = DeviceType.ANDROID

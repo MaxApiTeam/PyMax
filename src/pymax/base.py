@@ -95,6 +95,7 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
             proxy=self.extra_config.proxy,
             registration_config=self.extra_config.registration_config,
             upload_timeout=self.extra_config.upload_timeout,
+            relogin=self.extra_config.relogin,
             device=DeviceConfig(
                 mt_instance_id=self.extra_config.mt_instance_id,
                 device_id=self.extra_config.device_id or str(uuid4()),
@@ -126,6 +127,26 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
         self._connection = self._build_connection()
         self._app = self._build_app()
 
+    async def connect(self: ClientT) -> None:  # noqa: PYI019
+        try:
+            await self._app.start()
+            if not self._app.started:
+                await self.close()
+                return
+
+            await self._app.dispatcher.emit_start(self)
+        except asyncio.CancelledError:
+            await self.close()
+            raise
+        except (ConnectionError, EOFError, OSError, TimeoutError, ApiError) as e:
+            await self.close()
+            await self._app.dispatcher.emit_disconnect(
+                e,
+                self.extra_config.reconnect,
+                self.extra_config.reconnect_delay,
+            )
+            raise
+
     async def start(self: ClientT) -> None:  # noqa: PYI019
         """Запускает клиента и слушает события до закрытия соединения."""
         while True:
@@ -146,8 +167,9 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
                     raise
 
                 logger.warning("login token was revoked; starting authentication again")
-                await self.relogin(start=False)
-            except (  # noqa: PERF203
+                if self.extra_config.relogin:
+                    await self.relogin(start=False)
+            except (
                 ConnectionError,
                 EOFError,
                 OSError,
