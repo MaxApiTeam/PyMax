@@ -111,6 +111,13 @@ class RuntimeClient(BaseClient["RuntimeClient"]):
     def _build_connection(self) -> RuntimeConnection:
         return self._connection
 
+    async def _prepare_config(self):
+        return self._config
+
+    async def _ensure_runtime(self) -> None:
+        """Keep the explicitly assembled runtime used by these lifecycle tests."""
+        return None
+
 
 @pytest.mark.asyncio
 async def test_app_start_with_config_token_handshakes_logs_in_and_saves_session(

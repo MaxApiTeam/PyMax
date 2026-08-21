@@ -361,9 +361,9 @@ async def test_reaction_methods_parse_optional_reaction_info() -> None:
         ]
     )
 
-    added = await app.api.messages.add_reaction(100, "10", "👍")
-    reactions = await app.api.messages.get_reactions(100, ["10", "11"])
-    removed = await app.api.messages.remove_reaction(100, "10")
+    added = await app.api.messages.add_reaction(100, 10, "👍")
+    reactions = await app.api.messages.get_reactions(100, [10, 11])
+    removed = await app.api.messages.remove_reaction(100, 10)
 
     assert added is not None
     assert added.total_count == 1
@@ -375,6 +375,9 @@ async def test_reaction_methods_parse_optional_reaction_info() -> None:
         Opcode.MSG_GET_REACTIONS,
         Opcode.MSG_CANCEL_REACTION,
     ]
+    assert app.calls[0].payload["messageId"] == 10
+    assert app.calls[1].payload["messageIds"] == [10, 11]
+    assert app.calls[2].payload["messageId"] == 10
 
 
 @pytest.mark.asyncio
