@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Sequence
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, TypeAlias
 
 from pymax.api.binding import bind_api_model, bind_api_models
@@ -36,6 +37,7 @@ from .enums import ItemType, MessagePayloadKey, ReadAction
 from .payloads import (
     AddReactionPayload,
     ChatHistoryPayload,
+    DelayedAttributes,
     DeleteMessagePayload,
     EditMessagePayload,
     ForwardLink,
@@ -60,6 +62,7 @@ if TYPE_CHECKING:
 
 SendAttachment: TypeAlias = Photo | File | Video | Poll | Voice | VideoNote
 SendAttachments: TypeAlias = Sequence[SendAttachment] | None
+DateTimeUnion: TypeAlias = datetime | timedelta | int
 
 logger = get_logger(__name__)
 
@@ -122,6 +125,15 @@ class MessageService:
 
         return result
 
+    def _convert_time(self, time: DateTimeUnion) -> int:
+        if isinstance(time, datetime):
+            return int(time.timestamp() * 1000)
+
+        if isinstance(time, timedelta):
+            return int((datetime.now() + time).timestamp() * 1000)
+
+        return time * 1000
+
     async def send_message(
         self,
         chat_id: int,
@@ -130,6 +142,7 @@ class MessageService:
         attachments: SendAttachments = None,
         *,
         notify: bool = True,
+        send_at: DateTimeUnion | None = None,
     ) -> Message:
         logger.info("sending message chat_id=%s text_len=%s", chat_id, len(text) if text else 0)
 
@@ -150,6 +163,12 @@ class MessageService:
                 elements=elements,
                 attaches=await self._upload_attachments(attachments),
                 link=ReplyLink(message_id=reply_to) if reply_to else None,
+                delayed_attributes=DelayedAttributes(
+                    time_to_fire=self._convert_time(send_at),
+                    notify_sender=notify,
+                )
+                if send_at
+                else None,
             ),
             notify=notify,
         )
@@ -385,7 +404,7 @@ class MessageService:
     async def add_reaction(
         self,
         chat_id: int,
-        message_id: str,
+        message_id: int,
         reaction: str,
     ) -> ReactionInfo | None:
         logger.info(
@@ -410,7 +429,7 @@ class MessageService:
     async def get_reactions(
         self,
         chat_id: int,
-        message_ids: list[str],
+        message_ids: list[int],
     ) -> dict[str, ReactionInfo] | None:
         logger.info(
             "getting reactions chat_id=%s message_ids=%s",
@@ -438,7 +457,7 @@ class MessageService:
     async def remove_reaction(
         self,
         chat_id: int,
-        message_id: str,
+        message_id: int,
     ) -> ReactionInfo | None:
         logger.info(
             "removing reaction chat_id=%s message_id=%s",

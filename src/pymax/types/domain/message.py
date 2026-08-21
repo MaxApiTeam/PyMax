@@ -27,7 +27,7 @@ from .element import Element
 from .enums import MessageStatus
 
 if TYPE_CHECKING:
-    from pymax.api.messages.service import MessageService
+    from pymax.api.messages import DateTimeUnion, MessageService
 
 
 KnownAttachment: TypeAlias = Annotated[
@@ -89,6 +89,12 @@ class ReadState(CamelModel):
 
     unread: int
     mark: int
+
+
+class DelayedAttributes(CamelModel):
+    time_to_fire: int
+    notify_sender: bool
+    notify_opponents: bool
 
 
 class Message(CamelModel):
@@ -169,6 +175,7 @@ class Message(CamelModel):
     unread: int | None = None
     mark: int | None = None
     elements: list[Element] = Field(default_factory=list)
+    delayed_attributes: DelayedAttributes | None = None
 
     _actions: MessageService | None = PrivateAttr(default=None)
 
@@ -189,6 +196,7 @@ class Message(CamelModel):
         attachments: SendAttachments = None,
         *,
         notify: bool = True,
+        send_at: DateTimeUnion | None = None,
     ) -> Message:
         """Отправляет ответ на это сообщение в тот же чат.
 
@@ -211,6 +219,7 @@ class Message(CamelModel):
             reply_to=self.id,
             attachments=attachments,
             notify=notify,
+            send_at=send_at,
         )
 
     async def answer(
@@ -220,6 +229,7 @@ class Message(CamelModel):
         attachments: SendAttachments = None,
         *,
         notify: bool = True,
+        send_at: DateTimeUnion | None = None,
     ) -> Message:
         """Отправляет сообщение в тот же чат.
 
@@ -244,6 +254,7 @@ class Message(CamelModel):
             reply_to=reply_to,
             attachments=attachments,
             notify=notify,
+            send_at=send_at,
         )
 
     async def forward(
@@ -362,7 +373,7 @@ class Message(CamelModel):
 
         return await actions.add_reaction(
             chat_id=chat_id,
-            message_id=str(self.id),  # :C
+            message_id=self.id,
             reaction=reaction,
         )
 
@@ -378,7 +389,7 @@ class Message(CamelModel):
 
         return await actions.remove_reaction(
             chat_id=chat_id,
-            message_id=str(self.id),  # :C x2
+            message_id=self.id,
         )
 
     async def get_reactions(self) -> dict[str, ReactionInfo] | None:
@@ -394,7 +405,7 @@ class Message(CamelModel):
 
         return await actions.get_reactions(
             chat_id=chat_id,
-            message_ids=[str(self.id)],  # :C x3
+            message_ids=[self.id],
         )
 
     def _bound(self) -> tuple[MessageService, int]:
