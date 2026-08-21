@@ -8,6 +8,7 @@ from uuid import uuid4
 from pymax.dispatch import ErrorScope, Router
 from pymax.dispatch.router import DisconnectDecorator, ErrorDecorator
 from pymax.exceptions import ApiError
+from pymax.fingerprint.models import ApkBuildFingerprint
 from pymax.infra import BaseMixin
 from pymax.logging import get_logger
 
@@ -74,6 +75,8 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
         *,
         phone: str | None,
         user_agent: MobileUserAgentPayload,
+        version: str | None,
+        fingerprint: ApkBuildFingerprint | None,
     ) -> ClientConfig:
         logger.debug(
             "building client config token_set=%s",
@@ -96,6 +99,8 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
             registration_config=self.extra_config.registration_config,
             upload_timeout=self.extra_config.upload_timeout,
             relogin=self.extra_config.relogin,
+            app_version=version,
+            fingering=fingerprint,
             device=DeviceConfig(
                 mt_instance_id=self.extra_config.mt_instance_id,
                 device_id=self.extra_config.device_id or str(uuid4()),
@@ -105,7 +110,18 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
 
     @abstractmethod
     def _build_connection(self) -> ConnectionManager:
+
         raise NotImplementedError
+
+    @abstractmethod
+    async def _prepare_config(self) -> ClientConfig:
+        raise NotImplementedError
+
+    async def _ensure_runtime(self: ClientT) -> None:  # noqa: PYI019
+        if getattr(self, "_config", None) is None:
+            self._config = await self._prepare_config()
+        self._connection = self._build_connection()
+        self._app = self._build_app()
 
     def _init_runtime(self: ClientT, *, auth_flow: AuthFlow) -> None:  # noqa: PYI019
         self._connection = self._build_connection()
@@ -129,6 +145,7 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
 
     async def connect(self: ClientT) -> None:  # noqa: PYI019
         try:
+            await self._ensure_runtime()
             await self._app.start()
             if not self._app.started:
                 await self.close()
@@ -151,6 +168,7 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
         """Запускает клиента и слушает события до закрытия соединения."""
         while True:
             try:
+                await self._ensure_runtime()
                 await self._app.start()
                 if not self._app.started:
                     await self.close()
@@ -201,6 +219,9 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
 
     async def close(self) -> None:
         """Закрывает соединение, фоновые задачи и файл сессии."""
+        if getattr(self, "_app", None) is None:  # TODO: maybe impl it better way
+            return
+
         await self._app.close()
 
     async def stop(self) -> None:

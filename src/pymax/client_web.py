@@ -5,12 +5,13 @@ from pymax.auth.providers import ConsoleQrHandler, QrHandler
 from pymax.auth.qr import QrAuthFlow
 from pymax.connection import ConnectionManager
 from pymax.connection.readers import WSReader
+from pymax.dispatch import Router
 from pymax.logging import configure_logging, get_logger
 from pymax.protocol.tcp import TcpProtocol
 from pymax.transport.websocket import WebSocketTransport
 
 from .base import BaseClient
-from .config import ExtraConfig
+from .config import ClientConfig, ExtraConfig
 
 logger = get_logger(__name__)
 
@@ -51,20 +52,20 @@ class WebClient(BaseClient["WebClient"]):
             self.extra_config.reconnect,
         )
 
-        self._config = self._build_config(
-            phone=None,
-            user_agent=(
-                self.extra_config.user_agent or self.extra_config.generate_web_user_agent()
-            ),
-        )
-
         if auth_flow is None:
             auth_flow = QrAuthFlow(qr_provider or ConsoleQrHandler())
-        self._init_runtime(auth_flow=auth_flow)
+        self._auth_flow = auth_flow
+        self._router = Router()
 
         logger.debug(
             "web client created transport=ws url=%s",
             self.extra_config.url,
+        )
+
+    async def _prepare_config(self) -> ClientConfig:
+        user_agent = self.extra_config.user_agent or self.extra_config.generate_web_user_agent()
+        return self._build_config(
+            phone=None, user_agent=user_agent, version=None, fingerprint=None
         )
 
     def _build_connection(self) -> ConnectionManager:

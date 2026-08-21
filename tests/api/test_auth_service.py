@@ -84,7 +84,6 @@ async def test_request_and_send_code_parse_auth_responses() -> None:
     ]
     assert app.calls[0].payload["phone"] == "+79990000000"
     assert app.calls[0].payload["mode"] == app.fingerprint_generator.generate_fingerprint(
-        version=app.config.device.user_agent.app_version,
         device_id=app.config.device.device_id,
         calls_seed=123,
     )
@@ -146,7 +145,6 @@ async def test_mobile_request_code_accepts_zero_calls_seed() -> None:
     await app.api.auth.request_code("+79990000000")
 
     assert app.calls[0].payload["mode"] == app.fingerprint_generator.generate_fingerprint(
-        version=app.config.device.user_agent.app_version,
         device_id=app.config.device.device_id,
         calls_seed=0,
     )
@@ -190,7 +188,6 @@ async def test_mobile_login_sends_sync_payload_and_persists_updated_session() ->
     assert app.calls[0].payload[
         "chatCacheFingerprint"
     ] == app.fingerprint_generator.generate_fingerprint(
-        version=app.config.device.user_agent.app_version,
         device_id=app.config.device.device_id,
         calls_seed=123,
     )

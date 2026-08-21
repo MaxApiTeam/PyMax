@@ -76,8 +76,14 @@ class AuthService:
                     + "in AuthService.request_code. Please report this issue to the developer."
                 )
 
+            if self.app.fingerprint_generator is None:
+                raise ValueError(
+                    "Unexpected internal state: self.app.fingerprint_generator is missing and "
+                    + "DeviceType != WEB"
+                    + "in AuthService.request_code. Please report this issue to the developer."
+                )
+
             mode = self.app.fingerprint_generator.generate_fingerprint(
-                version=self.app.config.device.user_agent.app_version,
                 device_id=device_id,
                 calls_seed=self.app.handshake_response.calls_seed,
                 arch=self.app.config.device.user_agent.arch or "arm64-v8a",
@@ -163,8 +169,14 @@ class AuthService:
                 + "in AuthService.mobile_login. Please report this issue to the developer."
             )
 
+        if self.app.fingerprint_generator is None:
+            raise ValueError(
+                "Unexpected internal state: self.app.fingerprint_generator is missing and "
+                + "DeviceType != WEB"
+                + "in AuthService.request_code. Please report this issue to the developer."
+            )
+
         ccf = self.app.fingerprint_generator.generate_fingerprint(
-            version=self.app.config.device.user_agent.app_version,
             device_id=device_id,
             calls_seed=self.app.handshake_response.calls_seed,
             arch=self.app.config.device.user_agent.arch or "arm64-v8a",

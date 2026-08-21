@@ -1,4 +1,4 @@
-from random import choice, randint, random
+from random import choice, randint
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -8,8 +8,10 @@ from pymax.api.session.payloads import (
     DEFAULT_WEB_HEADER_USER_AGENT,
     MobileUserAgentPayload,
 )
+from pymax.fingerprint.models import ApkBuildFingerprint
 from pymax.session import StoreProtocol
 from pymax.types.domain.sync import SyncOverrides
+from pymax.versions.catalog import VersionCatalog
 
 MIN_PREFERRED_BUILD = 6712
 APP_VERSIONS: tuple[tuple[str, int], ...] = (
@@ -47,12 +49,12 @@ APP_VERSIONS: tuple[tuple[str, int], ...] = (
     ("26.12.2", 6681),
     ("26.12.1", 6679),
     ("26.12.0", 6676),
-    ("26.11.3", 6670),
-    ("26.11.2", 6669),
-    ("26.11.1", 6665),
-    ("26.10.1", 6653),
-    ("26.10.0", 6648),
-    ("26.9.1", 6643),
+    # ("26.11.3", 6670), # Not supported TODO: delete maybe
+    # ("26.11.2", 6669),
+    # ("26.11.1", 6665),
+    # ("26.10.1", 6653),
+    # ("26.10.0", 6648),
+    # ("26.9.1", 6643),
 )
 ANDROID_DEVICES: tuple[tuple[str, str, str, str], ...] = (
     ("Samsung SM-A525F", "Android 13", "405dpi 405dpi 1080x2400", "arm64-v8a"),
@@ -104,7 +106,7 @@ LOCALE_TIMEZONES: tuple[tuple[str, str], ...] = (
     ("ru", "Asia/Yakutsk"),
     ("ru", "Asia/Vladivostok"),
 )
-WEB_APP_VERSION = "26.7.15"
+WEB_APP_VERSION = "26.8.4"
 WEB_SCREEN = "1080x1920 1.0x"
 
 PREFERRED_VERSION = [version for version in APP_VERSIONS if version[1] >= MIN_PREFERRED_BUILD]
@@ -136,6 +138,9 @@ class RegistrationConfig(BaseModel):
 class ClientConfig(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    app_version: str | None = VersionCatalog.RECOMMENDED_APP_VERSION
+    fingering: ApkBuildFingerprint | None
+
     phone: str | None = None
     work_dir: str = "."
     session_name: str = "session.db"
@@ -145,8 +150,7 @@ class ClientConfig(BaseModel):
     registration_config: RegistrationConfig | None = None
     upload_timeout: int = 900
     relogin: bool = True
-
-    host: str = "api.oneme.ru"
+    host: str = "api2.oneme.ru"
     port: int = 443
     use_ssl: bool = True
 
@@ -213,7 +217,7 @@ class ExtraConfig(BaseModel):
     token: str | None = None
     registration_config: RegistrationConfig | None = None
 
-    host: str = "api.oneme.ru"
+    host: str = "api2.oneme.ru"
     port: int = 443
     url: str = "wss://api.oneme.ru/websocket"
     use_ssl: bool = True
@@ -236,14 +240,12 @@ class ExtraConfig(BaseModel):
 
     sync: SyncOverrides = Field(default_factory=SyncOverrides)
 
-    def generate_user_agent(self) -> MobileUserAgentPayload:
+    def generate_user_agent(self, app_version: str, build_number: int) -> MobileUserAgentPayload:
         """Создает mobile user-agent payload для TCP-клиента.
 
         Returns:
             Случайная, но правдоподобная конфигурация Android-клиента Max.
         """
-        versions = PREFERRED_VERSION if random() < 0.9 else LEGACY_VERSIONS
-        app_version, build_number = choice(versions)
         device_name, os_version, screen, arch = choice(ANDROID_DEVICES)
         locale, timezone = choice(LOCALE_TIMEZONES)
 

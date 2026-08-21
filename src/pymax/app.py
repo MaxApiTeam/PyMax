@@ -40,7 +40,9 @@ class App(Generic[ClientT]):
         self.config = config
         self.store = self.config.store or SessionStore(config.work_dir, config.session_name)
         self.auth_flow = auth_flow
-        self.fingerprint_generator = FingerprintGenerator()
+        self.fingerprint_generator: FingerprintGenerator | None = (
+            FingerprintGenerator(self.config.fingering) if self.config.fingering else None
+        )
 
         self.me: Profile | None = None
         self.chats: list[Chat] | None = None
