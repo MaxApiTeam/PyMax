@@ -4,6 +4,9 @@ import time
 from functools import reduce
 from operator import or_
 from typing import TYPE_CHECKING
+from datetime import datetime, timedelta
+
+from pymax.api.messages import DateTimeUnion
 
 from pymax.api.binding import bind_api_model
 from pymax.api.response import (
@@ -82,6 +85,19 @@ class ChatService:
 
         self.app.chats = [chat for chat in self.app.chats if chat.id != chat_id]
 
+    def _convert_period(self, period: DateTimeUnion) -> int:
+        if isinstance(period, timedelta):
+            return int(period.total_seconds())
+        if isinstance(period, datetime):
+            raise ValueError("Period cannot be a datetime")
+        return int(period)
+
+    def _convert_time(self, time_: DateTimeUnion) -> int:
+        if isinstance(time_, datetime):
+            return int(time_.timestamp() * 1000)
+        if isinstance(time_, timedelta):
+            return int((datetime.now() + time_).timestamp() * 1000)
+        
     @staticmethod
     def _process_chat_join_link(link: str) -> str | None:
         idx = link.find(ChatLinkPrefix.JOIN)
@@ -164,12 +180,12 @@ class ChatService:
         self,
         chat_id: int,
         user_ids: list[int],
-        clean_msg_period: int,
+        clean_msg_period: DateTimeUnion,
     ) -> bool:
         frame = RemoveUsersPayload(
             chat_id=chat_id,
             user_ids=user_ids,
-            clean_msg_period=clean_msg_period,
+            clean_msg_period=self._convert_period(clean_msg_period),
         )
 
         response = await self.app.invoke(
@@ -309,8 +325,16 @@ class ChatService:
     async def leave_channel(self, chat_id: int) -> None:
         await self.leave_group(chat_id)
 
-    async def fetch_chats(self, marker: int | None = None) -> list[Chat]:
-        frame = FetchChatsPayload(marker=marker or int(time.time() * 1000))
+    async def fetch_chats(self, marker: DateTimeUnion | None = None) -> list[Chat]:
+        frame = FetchChatsPayload(
+            marker=(
+                self._convert_time(marker)
+                if isinstance(marker, (datetime, timedelta))
+                # Если marker=0, он будет перезаписан текущим временем (т.к. 0 расценивается как False). 
+                # Чтобы это исправить, можно заменить на: else (int(marker) if marker is not None else int(time.time() * 1000))
+                else (marker or int(time.time() * 1000))
+            )
+        )
         response = await self.app.invoke(Opcode.CHATS_LIST, frame.to_payload())
 
         chats = [
@@ -395,13 +419,15 @@ class ChatService:
     async def delete_chat(
         self,
         chat_id: int,
-        last_event_time: int | None = None,
+        last_event_time: DateTimeUnion | None = None,
         for_all: bool = True,
     ) -> None:
         frame = DeleteChatPayload(
             chat_id=chat_id,
             last_event_time=(
-                last_event_time if last_event_time is not None else int(time.time() * 1000)
+                self._convert_time(last_event_time)
+                if isinstance(last_event_time, (datetime, timedelta))
+                else (int(last_event_time) if last_event_time is not None else int(time.time() * 1000))
             ),
             for_all=for_all,
         )

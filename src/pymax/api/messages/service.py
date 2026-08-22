@@ -132,7 +132,14 @@ class MessageService:
         if isinstance(time, timedelta):
             return int((datetime.now() + time).timestamp() * 1000)
 
-        return time * 1000
+        return int(time) * 1000
+
+    def _convert_period(self, period: DateTimeUnion) -> int:
+        if isinstance(period, timedelta):
+            return int(period.total_seconds() * 1000)
+        if isinstance(period, datetime):
+            raise ValueError("Period cannot be a datetime")
+        return int(period)
 
     async def send_message(
         self,
@@ -284,9 +291,9 @@ class MessageService:
         chat_id: int,
         forward: int = 0,
         backward: int = 40,
-        backward_time: int = 0,
-        forward_time: int = 0,
-        from_: int | None = None,
+        backward_time: DateTimeUnion = 0,
+        forward_time: DateTimeUnion = 0,
+        from_: DateTimeUnion | None = None,
         item_type: ItemType = ItemType.REGULAR,
         get_chat: bool = False,
         get_messages: bool = True,
@@ -296,9 +303,15 @@ class MessageService:
             chat_id=chat_id,
             forward=forward,
             backward=backward,
-            backward_time=backward_time,
-            forward_time=forward_time,
-            from_=from_ or int(time.time() * 1000),
+            backward_time=self._convert_period(backward_time),
+            forward_time=self._convert_period(forward_time),
+            from_=(
+                self._convert_time(from_)
+                if isinstance(from_, (datetime, timedelta))
+                # Если from_=0, он будет перезаписан текущим временем (т.к. 0 расценивается как False). 
+                # Чтобы это исправить, можно заменить на: else (int(from_) if from_ is not None else int(time.time() * 1000))
+                else (from_ or int(time.time() * 1000))
+            ),
             item_type=item_type,
             get_chat=get_chat,
             get_messages=get_messages,

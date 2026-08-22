@@ -79,7 +79,7 @@ class ChatMixin(IClientProtocol):
         self,
         chat_id: int,
         user_ids: list[int],
-        clean_msg_period: int,
+        clean_msg_period: DateTimeUnion,
     ) -> bool:
         """Удаляет пользователей из группы.
 
@@ -254,7 +254,7 @@ class ChatMixin(IClientProtocol):
     async def delete_chat(
         self,
         chat_id: int,
-        last_event_time: int | None = None,
+        last_event_time: DateTimeUnion | None = None,
         for_all: bool = True,
     ) -> None:
         """Удаляет чат.
@@ -272,7 +272,7 @@ class ChatMixin(IClientProtocol):
             for_all=for_all,
         )
 
-    async def fetch_chats(self, marker: int | None = None) -> list[Chat]:
+    async def fetch_chats(self, marker: DateTimeUnion | None = None) -> list[Chat]:
         """Загружает список чатов с сервера и обновляет кеш клиента.
 
         Args:

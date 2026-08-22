@@ -10,7 +10,7 @@ from .message import Message, SendAttachments
 
 if TYPE_CHECKING:
     from pymax.api.chats import ChatService
-    from pymax.api.messages import MessageService
+    from pymax.api.messages import MessageService, DateTimeUnion
     from pymax.api.messages.enums import ItemType
 
 
@@ -190,9 +190,9 @@ class Chat(CamelModel):
         self,
         forward: int = 0,
         backward: int = 40,
-        backward_time: int = 0,
-        forward_time: int = 0,
-        from_time: int | None = None,
+        backward_time: DateTimeUnion = 0,
+        forward_time: DateTimeUnion = 0,
+        from_time: DateTimeUnion | None = None,
         item_type: ItemType | None = None,
         get_chat: bool = False,
         get_messages: bool = True,
@@ -209,12 +209,12 @@ class Chat(CamelModel):
         :param backward: Сколько сообщений загрузить назад от ``from_time``.
         :type backward: int
         :param backward_time: Временное окно назад в миллисекундах.
-        :type backward_time: int
+        :type backward_time: DateTimeUnion
         :param forward_time: Временное окно вперед в миллисекундах.
-        :type forward_time: int
+        :type forward_time: DateTimeUnion
         :param from_time: Точка отсчета в миллисекундах Unix time. Если
             ``None``, используется текущий момент.
-        :type from_time: int | None
+        :type from_time: DateTimeUnion | None
         :param item_type: Тип элементов истории: обычные или отложенные.
         :type item_type: ItemType | None
         :param get_chat: Запросить данные чата вместе с историей.
@@ -365,14 +365,14 @@ class Chat(CamelModel):
     async def remove_users(
         self,
         user_ids: list[int],
-        clean_msg_period: int = 0,
+        clean_msg_period: DateTimeUnion = 0,
     ) -> bool:
         """Удаляет пользователей из группы.
 
         :param user_ids: ID пользователей, которых нужно удалить.
         :type user_ids: list[int]
         :param clean_msg_period: Период удаления сообщений пользователей.
-        :type clean_msg_period: int
+        :type clean_msg_period: DateTimeUnion
         :returns: ``True``, если сервер принял запрос.
         :rtype: bool
         :raises RuntimeError: Если чат не привязан к клиенту.
