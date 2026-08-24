@@ -35,8 +35,6 @@ from pymax.types.domain import (
     ReadState,
     VideoRequest,
 )
-from pymax.types.events.video import VideoUploadSignal
-from pymax.types.events.voice import AudioUploadSignal
 
 from .enums import ItemType, MessagePayloadKey, ReadAction
 from .payloads import (

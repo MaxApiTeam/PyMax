@@ -232,7 +232,12 @@ class UploadService:
         #     ("Samsung SM-A525F", "Android 13", "405dpi 405dpi 1080x2400", "arm64-v8a"),
         # OKMessages/{app_version} ({os_version}; {device_name}; {screen})
 
-        user_agent = f"OKMessages/{self.app.config.app_version} ({self.app.config.device.user_agent.os_version}; {self.app.config.device.user_agent.device_name}; {self.app.config.device.user_agent.screen})"
+        user_agent = (
+            f"OKMessages/{self.app.config.app_version}"
+            + f" ({self.app.config.device.user_agent.os_version};"
+            + f" {self.app.config.device.user_agent.device_name};"
+            + f" {self.app.config.device.user_agent.screen})"
+        )
 
         headers = {
             "Content-Disposition": f"attachment; filename={quote(voice.name)}",
