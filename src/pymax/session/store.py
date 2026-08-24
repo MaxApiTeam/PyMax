@@ -2,10 +2,12 @@ from pathlib import Path
 
 import aiosqlite
 
+from pymax.api.session.payloads import MobileUserAgentPayload
 from pymax.logging import get_logger
 from pymax.types.domain.sync import DEFAULT_CONFIG_HASH, SyncState
 
 from .models import SessionInfo
+from .protocol import StoreProtocol
 
 logger = get_logger(__name__)
 
@@ -18,11 +20,64 @@ SESSION_COLUMNS = """
     contacts_sync,
     drafts_sync,
     presence_sync,
-    config_hash
+    config_hash,
+    user_agent
 """
 
 
-class SessionStore:
+class InMemoryStore(StoreProtocol):
+    """Хранилище одной сессии в памяти текущего runtime.
+
+    Данные не записываются на диск и становятся недоступны после пересоздания
+    ``App``. Обычно этот store выбирается автоматически при
+    ``ExtraConfig(persist_session=False)``.
+    """
+
+    def __init__(
+        self,
+    ) -> None:
+        self._session: SessionInfo | None = None
+
+    async def save_session(self, session_info: SessionInfo) -> None:
+        self._session = session_info
+
+    async def update_token(self, _: str, new_token: str) -> None:
+        if not self._session:
+            return
+        self._session.token = new_token
+
+    async def load_session(self) -> SessionInfo | None:
+        return self._session
+
+    async def load_session_by_device_id(self, device_id: str) -> SessionInfo | None:
+        if self._session and self._session.device_id != device_id:
+            return None
+
+        return self._session
+
+    async def load_session_by_phone(self, phone: str) -> SessionInfo | None:
+        if self._session and self._session.phone != phone:
+            return None
+
+        return self._session
+
+    async def delete_session(self, _: str) -> None:
+        self._session = None
+
+    async def close(self) -> None:
+        return None
+
+
+class SessionStore(StoreProtocol):
+    """SQLite-хранилище сессий, используемое по умолчанию.
+
+    Args:
+        work_dir: Директория файла базы данных; создается автоматически.
+        db_name: Имя файла базы данных. По умолчанию ``session.db``.
+
+    Схема существующего файла автоматически дополняется недостающими колонками.
+    """
+
     def __init__(self, work_dir: str, db_name: str = "session.db") -> None:
         self.work_dir = Path(work_dir)
         self.work_dir.mkdir(parents=True, exist_ok=True)
@@ -51,7 +106,8 @@ class SessionStore:
                 contacts_sync INTEGER NOT NULL DEFAULT -1,
                 drafts_sync INTEGER NOT NULL DEFAULT -1,
                 presence_sync INTEGER NOT NULL DEFAULT -1,
-                config_hash TEXT NOT NULL DEFAULT ''
+                config_hash TEXT NOT NULL DEFAULT '',
+                user_agent TEXT
             )
             """
         )
@@ -61,6 +117,7 @@ class SessionStore:
         await self._ensure_column(conn, "drafts_sync", "INTEGER NOT NULL DEFAULT -1")
         await self._ensure_column(conn, "presence_sync", "INTEGER NOT NULL DEFAULT -1")
         await self._ensure_column(conn, "config_hash", "TEXT NOT NULL DEFAULT ''")
+        await self._ensure_column(conn, "user_agent", "TEXT")
         await conn.execute(
             """
             UPDATE sessions
@@ -102,9 +159,10 @@ class SessionStore:
                 contacts_sync,
                 drafts_sync,
                 presence_sync,
-                config_hash
+                config_hash,
+                user_agent
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 session_info.token,
@@ -116,6 +174,11 @@ class SessionStore:
                 session_info.sync.drafts_sync,
                 session_info.sync.presence_sync,
                 session_info.sync.config_hash,
+                (
+                    session_info.user_agent.model_dump_json(by_alias=True, exclude_none=True)
+                    if session_info.user_agent is not None
+                    else None
+                ),
             ),
         )
         await conn.commit()
@@ -233,6 +296,11 @@ class SessionStore:
             device_id=row["device_id"],
             phone=row["phone"],
             mt_instance_id=row["mt_instance_id"] or "",
+            user_agent=(
+                MobileUserAgentPayload.model_validate_json(row["user_agent"])
+                if row["user_agent"] is not None
+                else None
+            ),
             sync=SyncState(
                 chats_sync=row["chats_sync"],
                 contacts_sync=row["contacts_sync"],

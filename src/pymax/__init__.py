@@ -1,4 +1,4 @@
-__version__ = "2.4.0"
+__version__ = "2.4.1"
 
 
 from .api.self import PrivacyAccess, PrivacySettingsUpdate
@@ -7,6 +7,7 @@ from .auth import (
     ConsolePasswordProvider,
     ConsoleQrHandler,
     ConsoleSmsCodeProvider,
+    PasswordAttemptsExceededError,
     PasswordProvider,
     QrAuthFlow,
     QrHandler,
@@ -49,12 +50,13 @@ __all__ = (
     "Message",
     "MessageDeleteEvent",
     "MessageReadEvent",
+    "PasswordAttemptsExceededError",
     "PasswordProvider",
     "Photo",
     "PresenceEvent",
-    "Profile",
     "PrivacyAccess",
     "PrivacySettingsUpdate",
+    "Profile",
     "PyMaxError",
     "QrAuthFlow",
     "QrHandler",

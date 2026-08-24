@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING, TypeAlias, TypeVar
 
 from pymax.api.binding import bind_api_model, bind_api_models
 from pymax.api.response import (
@@ -17,8 +18,10 @@ from pymax.api.uploads.payloads import (
     AttachFilePayload,
     AttachPhotoPayload,
     VideoAttachPayload,
+    VideoNoteAttachPayload,
+    VoiceAttachPayload,
 )
-from pymax.exceptions import UploadError
+from pymax.exceptions import ApiError, UploadError
 from pymax.files import File, Photo, Video, VideoNote, Voice
 from pymax.formatting.markdown import Formatter
 from pymax.logging import get_logger
@@ -32,6 +35,8 @@ from pymax.types.domain import (
     ReadState,
     VideoRequest,
 )
+from pymax.types.events.video import VideoUploadSignal
+from pymax.types.events.voice import AudioUploadSignal
 
 from .enums import ItemType, MessagePayloadKey, ReadAction
 from .payloads import (
@@ -64,6 +69,8 @@ SendAttachment: TypeAlias = Photo | File | Video | Poll | Voice | VideoNote
 SendAttachments: TypeAlias = Sequence[SendAttachment] | None
 DateTimeUnion: TypeAlias = datetime | timedelta | int
 
+T = TypeVar("T")
+
 logger = get_logger(__name__)
 
 
@@ -82,8 +89,12 @@ class MessageService:
 
     async def _upload_attachments(
         self, attachments: SendAttachments
-    ) -> list[AttachPhotoPayload | VideoAttachPayload | AttachFilePayload | Poll]:
-        result: list[AttachPhotoPayload | VideoAttachPayload | AttachFilePayload | Poll] = []
+    ) -> list[
+        AttachPhotoPayload | VideoAttachPayload | AttachFilePayload | VoiceAttachPayload | Poll
+    ]:  # TODO: TypeAlias
+        result: list[
+            AttachPhotoPayload | VideoAttachPayload | AttachFilePayload | VoiceAttachPayload | Poll
+        ] = []
         if not attachments:
             return result
 
@@ -104,7 +115,7 @@ class MessageService:
 
                 result.append(upload_result)
 
-            elif isinstance(attachment, Video):
+            elif isinstance(attachment, (Video, VideoNote)):
                 upload_result = await self.app.api.uploads.upload_video(attachment)
                 if not upload_result:
                     logger.error("Video uploading failed")
@@ -134,6 +145,53 @@ class MessageService:
 
         return time * 1000
 
+    async def _wait_for_upload_signal(
+        self,
+        waiters: dict[int, asyncio.Future[T]],
+        video_id: int,
+    ) -> None:
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[T] = loop.create_future()
+
+        waiters[video_id] = future
+        try:
+            await asyncio.wait_for(future, timeout=60)
+        except TimeoutError:
+            logger.warning(
+                "Timed out waiting for video processing notification video_id=%s",
+                video_id,
+            )
+            raise UploadError(f"Timed out waiting for video processing video_id={video_id}")
+        finally:
+            waiters.pop(video_id, None)
+
+    async def _process_attachment_error(
+        self,
+        attaches: list[
+            AttachPhotoPayload | VideoAttachPayload | AttachFilePayload | VoiceAttachPayload | Poll
+        ],
+    ):
+        attachment: VoiceAttachPayload | VideoNoteAttachPayload | None = None
+        for attach in attaches:
+            if isinstance(attach, (VoiceAttachPayload, VideoNoteAttachPayload)):
+                attachment = attach
+                break
+
+        if attachment is None:
+            raise ValueError(
+                "Unexpected internal state: Non voice/video_note attach is not ready. "
+                + "Please, report that issue"
+            )
+
+        if isinstance(attachment, VoiceAttachPayload):
+            await self._wait_for_upload_signal(
+                self.app.api.uploads.voice_upload_waiters, attachment.video_id
+            )
+        else:
+            await self._wait_for_upload_signal(
+                self.app.api.uploads.video_upload_waiters, attachment.video_id
+            )
+
     async def send_message(
         self,
         chat_id: int,
@@ -155,13 +213,15 @@ class MessageService:
         else:
             clean_text, elements = None, []
 
+        attaches = await self._upload_attachments(attachments)
+
         frame = SendMessagePayload(
             chat_id=chat_id,
             message=SendMessagePayloadMessage(
                 text=clean_text,
                 cid=self._next_cid(),
                 elements=elements,
-                attaches=await self._upload_attachments(attachments),
+                attaches=attaches,
                 link=ReplyLink(message_id=reply_to) if reply_to else None,
                 delayed_attributes=DelayedAttributes(
                     time_to_fire=self._convert_time(send_at),
@@ -173,7 +233,14 @@ class MessageService:
             notify=notify,
         )
 
-        response = await self.app.invoke(Opcode.MSG_SEND, frame.to_payload())
+        try:
+            response = await self.app.invoke(Opcode.MSG_SEND, frame.to_payload())
+        except ApiError as e:
+            if e.error == "attachment.not.ready":
+                await self._process_attachment_error(attaches)
+                response = await self.app.invoke(Opcode.MSG_SEND, frame.to_payload())
+            else:
+                raise
 
         message = bind_api_model(
             self.app,
@@ -260,15 +327,25 @@ class MessageService:
         else:
             clean_text, elements = None, []
 
+        attaches = await self._upload_attachments(attachments)
+
         frame = EditMessagePayload(
             chat_id=chat_id,
             message_id=message_id,
             text=clean_text,
             elements=elements,
-            attachments=await self._upload_attachments(attachments),
+            attachments=attaches,
         )
+        try:
+            response = await self.app.invoke(Opcode.MSG_EDIT, frame.to_payload())
+        except ApiError as e:
+            if e.error == "attachment.not.ready":
+                await self._process_attachment_error(attaches)
 
-        response = await self.app.invoke(Opcode.MSG_EDIT, frame.to_payload())
+                response = await self.app.invoke(Opcode.MSG_EDIT, frame.to_payload())
+            else:
+                raise
+
         message = require_payload_item_model(
             response,
             MessagePayloadKey.MESSAGE,

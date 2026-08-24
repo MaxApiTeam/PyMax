@@ -15,7 +15,7 @@ from pymax.exceptions import UploadError
 from pymax.files import File, Photo, Video, VideoNote, Voice
 from pymax.logging import get_logger
 from pymax.protocol import Opcode
-from pymax.types import AttachmentType, AudioUploadSignal
+from pymax.types import AudioUploadSignal
 
 from .models import (
     FileUploadResponse,
@@ -27,6 +27,8 @@ from .payloads import (
     AttachPhotoPayload,
     UploadPayload,
     VideoAttachPayload,
+    VideoNoteAttachPayload,
+    VoiceAttachPayload,
 )
 
 if TYPE_CHECKING:
@@ -182,7 +184,7 @@ class UploadService:
         logger.debug("Photo upload complete photo_id=%s", photo_id)
         return AttachPhotoPayload(photo_token=token)
 
-    async def upload_voice(self, voice: Voice) -> VideoAttachPayload:
+    async def upload_voice(self, voice: Voice) -> VoiceAttachPayload:
         logger.info("Uploading voice")
 
         payload = UploadPayload(
@@ -227,12 +229,18 @@ class UploadService:
             logger.exception("Failed to get voice size")
             raise UploadError("Failed to get voice size") from e
 
+        #     ("Samsung SM-A525F", "Android 13", "405dpi 405dpi 1080x2400", "arm64-v8a"),
+        # OKMessages/{app_version} ({os_version}; {device_name}; {screen})
+
+        user_agent = f"OKMessages/{self.app.config.app_version} ({self.app.config.device.user_agent.os_version}; {self.app.config.device.user_agent.device_name}; {self.app.config.device.user_agent.screen})"
+
         headers = {
             "Content-Disposition": f"attachment; filename={quote(voice.name)}",
-            "Content-Range": f"0-{file_size - 1}/{file_size}",
+            "Content-Range": f"bytes 0-{file_size - 1}/{file_size}",
             "Content-Length": str(file_size),
             "Connection": "keep-alive",
             "Content-Type": "application/octet-stream",
+            "User-Agent": quote(user_agent),
         }
 
         logger.debug(
@@ -240,15 +248,11 @@ class UploadService:
             headers["Content-Range"],
         )
 
-        loop = asyncio.get_running_loop()
-        future: asyncio.Future[AudioUploadSignal] = loop.create_future()
-
         timeout = aiohttp.ClientTimeout(total=self.app.config.upload_timeout, sock_read=60)
 
         video_id = upload_info.video_id
         token = upload_info.token
 
-        self.voice_upload_waiters[video_id] = future
         logger.debug("Voice upload waiter registered voice_id=%s", video_id)
 
         try:
@@ -279,24 +283,29 @@ class UploadService:
                             f"{response.status} voice_id={video_id}"
                         )
 
-                    try:
-                        logger.debug(
-                            "Waiting for voice processing notification voice_id=%s",
-                            video_id,
-                        )
-                        await asyncio.wait_for(future, 60)
-                    except asyncio.TimeoutError:
-                        logger.warning(
-                            "Timed out waiting for voice processing notification voice_id=%s",
-                            video_id,
-                        )
-                        raise UploadError(
-                            f"Timed out waiting for voice processing voice_id={video_id}"
-                        )
+                    # print(await response.read()) # TODO: Error handing (yes, with 200 status 💔)
+
+                    # try:
+                    #     logger.debug(
+                    #         "Waiting for voice processing notification voice_id=%s",
+                    #         video_id,
+                    #     )
+                    #     await asyncio.wait_for(future, 60)
+                    # except asyncio.TimeoutError:
+                    #     logger.warning(
+                    #         "Timed out waiting for voice processing notification voice_id=%s",
+                    #         video_id,
+                    #     )
+                    #     raise UploadError(
+                    #         f"Timed out waiting for voice processing voice_id={video_id}"
+                    #     )
 
                     logger.debug("Voice upload complete voice_id=%s", video_id)
-                    return VideoAttachPayload(
-                        type=AttachmentType.AUDIO, video_id=video_id, token=token
+                    return VoiceAttachPayload(
+                        video_id=video_id,
+                        token=token,
+                        duration=await voice.get_duration(),
+                        wave=b"\x00" * 80,
                     )
 
         except UploadError:
@@ -314,7 +323,9 @@ class UploadService:
             self.voice_upload_waiters.pop(video_id, None)
             logger.debug("Voice upload waiter removed voice_id=%s", video_id)
 
-    async def upload_video(self, uploadable_video: Video | VideoNote) -> VideoAttachPayload:
+    async def upload_video(
+        self, uploadable_video: Video | VideoNote
+    ) -> VideoAttachPayload | VideoNoteAttachPayload:
         logger.info("Uploading video")
         logger.debug("Preparing video upload payload")
 
@@ -369,7 +380,7 @@ class UploadService:
         timeout = aiohttp.ClientTimeout(total=self.app.config.upload_timeout, sock_read=60)
 
         headers = {
-            "Content-Disposition": f"attachment; filename={quote(uploadable_video.name)}",
+            "Content-Disposition": f"attachment; filename={quote(str(uploadable_video.name))}",
             "Content-Range": f"bytes 0-{file_size - 1}/{file_size}",
             "Content-Length": str(file_size),
             "Connection": "keep-alive",
@@ -427,10 +438,9 @@ class UploadService:
                                 thumbhash += "=" * (-len(thumbhash) % 4)
                                 thumbhash = base64.b64decode(thumbhash)
 
-                            return VideoAttachPayload(
+                            return VideoNoteAttachPayload(
                                 video_id=video_id,
                                 token=token,
-                                video_type=1,
                                 thumbhash=thumbhash,
                                 duration=await uploadable_video.get_duration(),
                             )

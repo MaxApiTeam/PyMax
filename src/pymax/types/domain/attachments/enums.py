@@ -42,3 +42,19 @@ class PollFlags(IntFlag):
     FLAG_SETTINGS_CLOSED = 8
     FLAG_SETTINGS_QUIZ = 16
     FLAG_SETTINGS_CAN_FORWARD = 32
+
+
+class CallType(str, Enum):
+    """Тип звонка во входящем ``CallAttachment``."""
+
+    AUDIO = "AUDIO"
+    VIDEO = "VIDEO"
+
+
+class HangupType(str, Enum):
+    """Причина завершения звонка во входящем ``CallAttachment``."""
+
+    MISSED = "MISSED"
+    REJECTED = "REJECTED"
+    CANCELED = "CANCELED"
+    HUNGUP = "HUNGUP"

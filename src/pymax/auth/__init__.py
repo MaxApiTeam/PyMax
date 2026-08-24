@@ -1,4 +1,5 @@
 from .base import AuthFlow
+from .exceptions import PasswordAttemptsExceededError
 from .providers import (
     ConsolePasswordProvider,
     ConsoleQrHandler,
@@ -17,6 +18,7 @@ __all__ = (
     "ConsoleQrHandler",
     "ConsoleSmsCodeProvider",
     "EmailCodeProvider",
+    "PasswordAttemptsExceededError",
     "PasswordProvider",
     "QrAuthFlow",
     "QrHandler",

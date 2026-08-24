@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Annotated, Any, TypeAlias
+from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeAlias
 
 from pydantic import Field, PrivateAttr, model_validator
 
@@ -24,7 +24,7 @@ from pymax.types.domain import (
 
 from .base import CamelModel
 from .element import Element
-from .enums import MessageStatus
+from .enums import AccessType, LinkType, MessageStatus
 
 if TYPE_CHECKING:
     from pymax.api.messages import DateTimeUnion, MessageService
@@ -47,6 +47,7 @@ KnownAttachment: TypeAlias = Annotated[
 Attachment: TypeAlias = KnownAttachment | UnknownAttachment
 SendAttachment: TypeAlias = Photo | File | Video | Poll | Voice | VideoNote
 SendAttachments: TypeAlias = Sequence[SendAttachment] | None
+Link: TypeAlias = Annotated["ReplyLink | ForwardLink", Field(discriminator="type")]
 
 
 class ReactionCounter(CamelModel):
@@ -97,6 +98,60 @@ class DelayedAttributes(CamelModel):
     notify_opponents: bool
 
 
+class ReplyLink(CamelModel):
+    """Источник сообщения, отправленного как reply.
+
+    :ivar message: Сообщение, на которое ответили.
+    :vartype message: Message
+    :ivar chat_id: ID чата исходного сообщения.
+    :vartype chat_id: int
+    """
+
+    type: Literal[LinkType.REPLY] = LinkType.REPLY
+    message: Message
+    chat_id: int
+
+
+class ForwardLink(CamelModel):
+    """Источник пересланного сообщения.
+
+    Помимо исходного сообщения содержит доступные в payload-е имя, ссылку,
+    тип доступа и иконку исходного чата. Для скрытого источника эти метаданные
+    могут быть ``None``.
+
+    :ivar message: Исходное сообщение.
+    :vartype message: Message
+    :ivar chat_id: ID исходного чата.
+    :vartype chat_id: int
+    """
+
+    type: Literal[LinkType.FORWARD] = LinkType.FORWARD
+    message: Message
+    chat_id: int
+    chat_name: str | None = None
+    chat_link: str | None = None
+    chat_access_type: AccessType | None = None
+    chat_icon_url: str | None = None
+
+
+"""
+            "link": {
+        "type": "FORWARD",
+        "message": {
+          "id": "116641336752745888",
+          "time": 1779805553478,
+          "type": "CHANNEL",
+          "text": "Добро пожаловать на наше шоу!",
+          "attaches": []
+        },
+        "chatId": -75183661482741,
+        "chatName": "Max Bounty Test",
+        "chatLink": "https://max.ru/join/htlT5aTtlpAgcno_hc93lLM44Dxe45HvOEBqx22lKms",
+        "chatAccessType": "PRIVATE"
+      }
+"""
+
+
 class Message(CamelModel):
     """Сообщение Max с методами для действий над ним.
 
@@ -136,7 +191,8 @@ class Message(CamelModel):
     :vartype type: str
     :ivar cid: Клиентский ID сообщения, если он есть в payload-е.
     :vartype cid: int | None
-    :ivar attaches: Вложения сообщения.
+    :ivar attaches: Вложения сообщения. Неизвестный ``_type`` представлен как
+        ``UnknownAttachment`` с сохраненными дополнительными полями.
     :vartype attaches: list[Attachment]
     :ivar stats: Дополнительная статистика сообщения от Max.
     :vartype stats: dict[str, Any] | None
@@ -156,6 +212,12 @@ class Message(CamelModel):
     :vartype mark: int | None
     :ivar elements: Форматированные элементы текста сообщения.
     :vartype elements: list[Element]
+    :ivar delayed_attributes: Время срабатывания в миллисекундах и настройки
+        уведомлений для отложенного сообщения; ``None`` для обычного.
+    :vartype delayed_attributes: DelayedAttributes | None
+    :ivar link: Исходное сообщение и чат для reply или forward; ``None`` для
+        обычного сообщения без связи.
+    :vartype link: ReplyLink | ForwardLink | None
     """
 
     id: int
@@ -176,6 +238,7 @@ class Message(CamelModel):
     mark: int | None = None
     elements: list[Element] = Field(default_factory=list)
     delayed_attributes: DelayedAttributes | None = None
+    link: Link | None = None
 
     _actions: MessageService | None = PrivateAttr(default=None)
 
@@ -206,6 +269,9 @@ class Message(CamelModel):
         :type attachments: SendAttachments
         :param notify: Отправить ли получателям push-уведомление.
         :type notify: bool
+        :param send_at: Абсолютный ``datetime``, относительный ``timedelta``
+            или Unix time в секундах. ``None`` и ``0`` отправляют сразу.
+        :type send_at: DateTimeUnion | None
         :returns: Отправленное сообщение.
         :rtype: Message
         :raises RuntimeError: Если сообщение не привязано к сервису или не
@@ -241,6 +307,9 @@ class Message(CamelModel):
         :type attachments: SendAttachments
         :param notify: Отправить ли получателям push-уведомление.
         :type notify: bool
+        :param send_at: Абсолютный ``datetime``, относительный ``timedelta``
+            или Unix time в секундах. ``None`` и ``0`` отправляют сразу.
+        :type send_at: DateTimeUnion | None
         :returns: Отправленное сообщение.
         :rtype: Message
         :raises RuntimeError: Если сообщение не привязано к сервису или не

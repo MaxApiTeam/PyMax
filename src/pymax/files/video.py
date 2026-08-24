@@ -1,13 +1,8 @@
 from collections.abc import AsyncGenerator
-from io import BytesIO
 from pathlib import Path
+from typing import Any
 
-from .base import BaseFile
-
-try:
-    from tinytag import TinyTag
-except ImportError:
-    TinyTag = None
+from .base import BaseFile, TimedMediaFile
 
 
 class Video(BaseFile):
@@ -80,12 +75,23 @@ class Video(BaseFile):
         return super().iter_chunks(size)
 
 
-class VideoNote(Video):
+class VideoNote(TimedMediaFile):
     """Круглое видеосообщение для отправки.
 
     Принимает те же источники, что и ``Video``. Длительность задается в
     миллисекундах. Если она не передана, требуется extra ``video`` для
     автоматического определения длительности.
+
+    Args:
+        raw: Байты видеосообщения.
+        url: URL видеосообщения.
+        path: Локальный путь к видеосообщению.
+        name: Имя файла. Обязательно для ``raw``.
+        duration: Длительность в миллисекундах. ``None`` включает
+            автоматическое определение через extra ``video``.
+
+    Raises:
+        RuntimeError: При определении длительности без extra ``video``.
     """
 
     def __init__(
@@ -98,35 +104,22 @@ class VideoNote(Video):
         duration: int | None = None,
     ) -> None:
         self.duration = duration
-        super().__init__(raw, url=url, path=path, name=name)
+        self.name: str = name or ""
+        if not self.name and path:
+            self.name = Path(path).name
+        elif not self.name and url:
+            self.name = Path(url).name
 
-    async def get_duration(self) -> int:
-        if self.duration is not None:
-            return self.duration
+        if not self.name:
+            raise ValueError("Either name, url or path must be provided.")
 
-        if not TinyTag:
-            raise RuntimeError(
-                "Automatic video duration detection requires the 'video' extra. "
-                "Install it with `uv add 'maxapi-python[video]'` "
-                "or pass duration manually."
-            )
+        super().__init__(raw, url=url, path=path, name=self.name, duration=self.duration)
 
-        if self.raw:
-            tag = TinyTag.get(
-                filename=self.name,
-                file_obj=BytesIO(self.raw),
-                tags=False,
-                duration=True,
-            )
-        else:
-            tag = TinyTag.get(
-                filename=self.name,
-                file_obj=BytesIO(await self.read()),
-                tags=False,
-                duration=True,
-            )
+    async def read(self) -> bytes:
+        return await super().read()
 
-        if tag.duration is None:
-            raise ValueError("Failed to determine video duration.")
+    def iter_chunks(self, size: int) -> AsyncGenerator[bytes, None]:
+        return super().iter_chunks(size)
 
-        return round(tag.duration * 1000)
+    async def size(self) -> int:
+        return await super().size()

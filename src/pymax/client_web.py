@@ -39,9 +39,9 @@ class WebClient(BaseClient["WebClient"]):
         auth_flow: AuthFlow | None = None,
         qr_provider: QrHandler | None = None,
     ) -> None:
-        self.extra_config = extra_config or ExtraConfig()
-        self.session_name = session_name
-        self.work_dir = work_dir
+        self.extra_config: ExtraConfig = extra_config or ExtraConfig()
+        self.session_name: str = session_name
+        self.work_dir: str = work_dir
 
         configure_logging(self.extra_config.log_level)
         logger.debug(
@@ -64,9 +64,11 @@ class WebClient(BaseClient["WebClient"]):
 
     async def _prepare_config(self) -> ClientConfig:
         user_agent = self.extra_config.user_agent or self.extra_config.generate_web_user_agent()
-        return self._build_config(
+        config = self._build_config(
             phone=None, user_agent=user_agent, version=None, fingerprint=None
         )
+        config.restore_user_agent_from_session = self.extra_config.user_agent is None
+        return config
 
     def _build_connection(self) -> ConnectionManager:
         logger.debug(

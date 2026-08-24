@@ -40,6 +40,15 @@ class Client(BaseClient["Client"]):
         auth_flow: Полностью пользовательский сценарий авторизации.
         sms_code_provider: Провайдер SMS-кода для стандартного ``SmsAuthFlow``.
         password_provider: Провайдер пароля 2FA, если аккаунт его требует.
+        app_version: Версия Android-клиента для user-agent и fingerprint.
+            По умолчанию используется ``VersionCatalog.recommended()``.
+        catalog: Каталог fingerprints. Если не передан, используется
+            встроенный каталог. Каталог и версия разрешаются при
+            :meth:`connect` или :meth:`start`.
+
+    Raises:
+        VersionNotFoundError: При запуске, если ``app_version`` отсутствует в
+            итоговом каталоге.
     """
 
     def __init__(  # noqa: PLR0913
@@ -55,12 +64,12 @@ class Client(BaseClient["Client"]):
         catalog: VersionCatalog | None = None,
     ) -> None:
 
-        self.phone = phone
-        self.extra_config = extra_config or ExtraConfig()
-        self.session_name = session_name
-        self.work_dir = work_dir
-        self.app_version = app_version
-        self.catalog = catalog or VersionCatalog()
+        self.phone: str = phone
+        self.extra_config: ExtraConfig = extra_config or ExtraConfig()
+        self.session_name: str = session_name
+        self.work_dir: str = work_dir
+        self.app_version: str = app_version
+        self.catalog: VersionCatalog = catalog or VersionCatalog()
 
         configure_logging(self.extra_config.log_level)
         logger.debug(
@@ -94,12 +103,14 @@ class Client(BaseClient["Client"]):
             self.app_version, fingerprint.build_number
         )
 
-        return self._build_config(
+        config = self._build_config(
             phone=self.phone,
             user_agent=user_agent,
             version=self.app_version,
             fingerprint=fingerprint,
         )
+        config.restore_user_agent_from_session = self.extra_config.user_agent is None
+        return config
 
     def _build_connection(self) -> ConnectionManager:
         logger.debug(
