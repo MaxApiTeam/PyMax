@@ -131,7 +131,11 @@ async def test_chat_mixin_delete_chat_uses_last_event_time_and_removes_cached_ch
 
     class Client(ChatMixin):
         def __init__(self, app: FakeApp) -> None:
-            self._app = app
+            self.__app = app
+
+        @property
+        def _app(self) -> FakeApp:
+            return self.__app
 
     app = FakeApp([frame({})])
     chat = Chat.model_validate(
@@ -314,7 +318,11 @@ async def test_user_mixin_import_contacts_delegates_to_user_service() -> None:
 
     class Client(UserMixin):
         def __init__(self, app: FakeApp) -> None:
-            self._app = app
+            self.__app = app
+
+        @property
+        def _app(self) -> FakeApp:
+            return self.__app
 
     app = FakeApp([frame({"contacts": [user_payload(7)]})])
     client = Client(app)

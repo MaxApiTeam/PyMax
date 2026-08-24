@@ -145,7 +145,7 @@ async def test_upload_video_posts_chunks_waits_for_processing_and_cleans_waiter(
 
 
 @pytest.mark.asyncio
-async def test_upload_voice_posts_chunks_waits_for_processing_and_cleans_waiter(
+async def test_upload_voice_posts_chunks_and_builds_attachment_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = FakeApp(
@@ -165,21 +165,20 @@ async def test_upload_voice_posts_chunks_waits_for_processing_and_cleans_waiter(
     )
     service = UploadService(app)
 
-    def resolve_processing() -> None:
-        service.voice_upload_waiters[12].set_result(AudioUploadSignal(audio_id=12))
-
     FakeHttpSession.posts = []
-    FakeHttpSession.response = FakeHttpResponse(200, on_enter=resolve_processing)
+    FakeHttpSession.response = FakeHttpResponse(200)
     monkeypatch.setattr(
         "pymax.api.uploads.service.aiohttp.ClientSession",
         FakeHttpSession,
     )
 
-    result = await service.upload_voice(Voice(raw=b"voice", name="voice.ogg"))
+    result = await service.upload_voice(Voice(raw=b"voice", name="voice.ogg", duration=1_000))
 
     assert result.type == AttachmentType.AUDIO
     assert result.video_id == 12
     assert result.token == "voice-token"
+    assert result.duration == 1_000
+    assert result.wave == b"\x00" * 80
     assert app.calls[0].payload == {
         "count": 1,
         "type": 2,
@@ -187,7 +186,7 @@ async def test_upload_voice_posts_chunks_waits_for_processing_and_cleans_waiter(
         "profile": False,
     }
     assert service.voice_upload_waiters == {}
-    assert FakeHttpSession.posts[0]["headers"]["Content-Range"] == "0-4/5"
+    assert FakeHttpSession.posts[0]["headers"]["Content-Range"] == "bytes 0-4/5"
     assert FakeHttpSession.posts[0]["url"] == "https://upload.test/voice"
 
 
