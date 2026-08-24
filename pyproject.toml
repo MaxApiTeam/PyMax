@@ -79,7 +79,7 @@ dev = [
   {include-group = "docs"},
   {include-group = "test"},
   "pre-commit>=4.0.0",
-  "twine>=5.0.0",
+  "twine>=7.0.0",
   "pyright>=1.1.390",
   "ruff>=0.8.0",
 ]
