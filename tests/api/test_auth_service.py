@@ -2,16 +2,15 @@ from __future__ import annotations
 
 import pytest
 
-import pymax.config as config_module
 from pymax import ExtraConfig
 from pymax.api.auth.enums import AuthType, ProfileOptions, TwoFactorAction
 from pymax.api.session.enums import DeviceType
-from pymax.config import APP_VERSIONS, MIN_PREFERRED_BUILD
-from pymax.fingerprint import FingerprintGenerator
+from pymax.config import APP_VERSIONS
 from pymax.protocol import Opcode
 from pymax.session.models import SessionInfo
 from pymax.types.domain import HandshakeResponse, Login2Flags
 from pymax.types.domain.sync import SyncState
+from pymax.versions import VersionCatalog
 from tests.conftest import (
     FakeApp,
     chat_payload,
@@ -34,26 +33,19 @@ class StaticEmailProvider:
 
 
 def test_supported_app_versions_match_packaged_fingerprints() -> None:
-    fingerprints = FingerprintGenerator().data
+    catalog = VersionCatalog()
 
-    assert set(fingerprints) == {version for version, _ in APP_VERSIONS}
     assert all(
-        fingerprints[version]["build_number"] == build_number
+        catalog.resolve(version).build_number == build_number
         for version, build_number in APP_VERSIONS
     )
 
 
-@pytest.mark.parametrize(("roll", "preferred"), [(0.0, True), (0.9, False)])
-def test_generate_user_agent_selects_preferred_and_legacy_versions(
-    monkeypatch: pytest.MonkeyPatch,
-    roll: float,
-    preferred: bool,
-) -> None:
-    monkeypatch.setattr(config_module, "random", lambda: roll)
+def test_generate_user_agent_uses_resolved_version() -> None:
+    user_agent = ExtraConfig().generate_user_agent("26.14.1", 6686)
 
-    user_agent = ExtraConfig().generate_user_agent()
-
-    assert (user_agent.build_number >= MIN_PREFERRED_BUILD) is preferred
+    assert user_agent.app_version == "26.14.1"
+    assert user_agent.build_number == 6686
 
 
 @pytest.mark.asyncio
@@ -84,7 +76,6 @@ async def test_request_and_send_code_parse_auth_responses() -> None:
     ]
     assert app.calls[0].payload["phone"] == "+79990000000"
     assert app.calls[0].payload["mode"] == app.fingerprint_generator.generate_fingerprint(
-        version=app.config.device.user_agent.app_version,
         device_id=app.config.device.device_id,
         calls_seed=123,
     )
@@ -146,7 +137,6 @@ async def test_mobile_request_code_accepts_zero_calls_seed() -> None:
     await app.api.auth.request_code("+79990000000")
 
     assert app.calls[0].payload["mode"] == app.fingerprint_generator.generate_fingerprint(
-        version=app.config.device.user_agent.app_version,
         device_id=app.config.device.device_id,
         calls_seed=0,
     )
@@ -190,7 +180,6 @@ async def test_mobile_login_sends_sync_payload_and_persists_updated_session() ->
     assert app.calls[0].payload[
         "chatCacheFingerprint"
     ] == app.fingerprint_generator.generate_fingerprint(
-        version=app.config.device.user_agent.app_version,
         device_id=app.config.device.device_id,
         calls_seed=123,
     )

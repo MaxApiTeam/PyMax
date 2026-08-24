@@ -33,12 +33,18 @@ class ReplyLink(CamelModel):
     message_id: int
 
 
+class DelayedAttributes(CamelModel):
+    time_to_fire: int
+    notify_sender: bool
+
+
 class SendMessagePayloadMessage(CamelModel):
     text: str | None = None
     cid: int
     elements: list[Any]
     attaches: list[AttachPhotoPayload | VideoAttachPayload | AttachFilePayload | Poll]
     link: ReplyLink | None = None
+    delayed_attributes: DelayedAttributes | None = None
 
 
 class SendMessagePayload(CamelModel):
@@ -111,18 +117,18 @@ class ReactionInfoPayload(CamelModel):
 
 class AddReactionPayload(CamelModel):
     chat_id: int
-    message_id: str
+    message_id: int
     reaction: ReactionInfoPayload
 
 
 class GetReactionsPayload(CamelModel):
     chat_id: int
-    message_ids: list[str]
+    message_ids: list[int]
 
 
 class RemoveReactionPayload(CamelModel):
     chat_id: int
-    message_id: str
+    message_id: int
 
 
 class ReadMessagesPayload(CamelModel):

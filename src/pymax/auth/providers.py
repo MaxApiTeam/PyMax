@@ -113,7 +113,11 @@ class EmailCodeProvider(Protocol):
 
 
 class ConsoleEmailCodeProvider:
-    """Консольный provider кода подтверждения email для 2FA."""
+    """Консольный provider кода подтверждения email для 2FA.
+
+    Блокирующий ``input()`` выполняется в worker thread и не останавливает
+    asyncio event loop.
+    """
 
     async def get_code(self, email: str) -> str:
         """Запрашивает email-код в консоли.
@@ -124,4 +128,4 @@ class ConsoleEmailCodeProvider:
         Returns:
             Введенный пользователем код.
         """
-        return input(f"Enter 2FA email code for {email}: ").strip()
+        return (await asyncio.to_thread(input, f"Enter 2FA email code for {email}: ")).strip()

@@ -13,7 +13,7 @@ from pymax.dispatch import Dispatcher, EventType, Router
 from pymax.exceptions import ApiError
 from pymax.protocol import Command, InboundFrame, Opcode
 from pymax.session.models import SessionInfo
-from tests.conftest import frame, make_config, profile_payload, user_payload
+from tests.conftest import frame, make_config, mobile_user_agent, profile_payload, user_payload
 
 
 class RuntimeStore:
@@ -104,11 +104,19 @@ class RuntimeClient(BaseClient["RuntimeClient"]):
         self.extra_config = SimpleNamespace(
             reconnect=False,
             reconnect_delay=0,
+            relogin=True,
             token=app.config.token,
         )
 
     def _build_connection(self) -> RuntimeConnection:
         return self._connection
+
+    async def _prepare_config(self):
+        return self._config
+
+    async def _ensure_runtime(self) -> None:
+        """Keep the explicitly assembled runtime used by these lifecycle tests."""
+        return None
 
 
 @pytest.mark.asyncio
@@ -143,6 +151,7 @@ async def test_app_start_with_config_token_handshakes_logs_in_and_saves_session(
     assert app.me is not None
     assert app.me.contact.id == 77
     assert store.saved[0].token == "config-token"
+    assert store.saved[0].user_agent == config.device.user_agent
     assert [sent[0].opcode for sent in connection.sent] == [
         Opcode.SESSION_INIT,
         Opcode.LOGIN,
@@ -151,6 +160,118 @@ async def test_app_start_with_config_token_handshakes_logs_in_and_saves_session(
     await app.close()
     assert connection.closed is True
     assert store.closed is True
+
+
+@pytest.mark.asyncio
+async def test_app_start_restores_session_user_agent_before_handshake(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def idle_ping_loop(self):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(App, "_ping_loop", idle_ping_loop)
+    stored_user_agent = mobile_user_agent().model_copy(
+        update={
+            "app_version": "26.13.0",
+            "build_number": 6683,
+            "device_name": "Stored Pixel",
+            "os_version": "Android 13",
+            "screen": "1440x3120",
+            "timezone": "Asia/Yekaterinburg",
+        }
+    )
+    store = RuntimeStore(
+        SessionInfo(
+            token="stored-token",
+            device_id="stored-device",
+            phone="+79990000000",
+            mt_instance_id="stored-mt",
+            user_agent=stored_user_agent,
+        )
+    )
+    config = make_config().model_copy(update={"store": store})
+    connection = RuntimeConnection(
+        [
+            frame({"callsSeed": 123}),
+            frame(
+                {
+                    "profile": profile_payload(77),
+                    "contacts": [],
+                    "chats": [],
+                    "messages": {},
+                }
+            ),
+        ]
+    )
+    app: App[object] = App(connection, config, StaticAuthFlow())
+
+    await app.start()
+
+    restored = app.config.device.user_agent
+    assert restored.device_name == "Stored Pixel"
+    assert restored.os_version == "Android 13"
+    assert restored.screen == "1440x3120"
+    assert restored.timezone == "Asia/Yekaterinburg"
+    assert restored.arch == "arm64-v8a"
+    assert restored.app_version == "26.14.1"
+    assert restored.build_number == 6686
+    assert connection.sent[0][0].payload["userAgent"] == restored.to_payload()
+    assert app.session is not None
+    assert app.session.user_agent == restored
+    assert store.saved[-1].user_agent == restored
+
+    await app.close()
+
+
+@pytest.mark.asyncio
+async def test_app_start_keeps_explicit_user_agent_over_session_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def idle_ping_loop(self):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(App, "_ping_loop", idle_ping_loop)
+    stored_user_agent = mobile_user_agent().model_copy(update={"device_name": "Stored Pixel"})
+    explicit_user_agent = mobile_user_agent().model_copy(update={"device_name": "Explicit Pixel"})
+    store = RuntimeStore(
+        SessionInfo(
+            token="stored-token",
+            device_id="stored-device",
+            phone="+79990000000",
+            user_agent=stored_user_agent,
+        )
+    )
+    config = make_config().model_copy(
+        update={
+            "store": store,
+            "restore_user_agent_from_session": False,
+        }
+    )
+    config.device.user_agent = explicit_user_agent
+    connection = RuntimeConnection(
+        [
+            frame({"callsSeed": 123}),
+            frame(
+                {
+                    "profile": profile_payload(77),
+                    "contacts": [],
+                    "chats": [],
+                    "messages": {},
+                }
+            ),
+        ]
+    )
+    app: App[object] = App(connection, config, StaticAuthFlow())
+
+    await app.start()
+
+    assert app.config.device.user_agent == explicit_user_agent
+    assert connection.sent[0][0].payload["userAgent"] == explicit_user_agent.to_payload()
+    assert app.session is not None
+    assert app.session.user_agent == explicit_user_agent
+    assert store.saved[-1].user_agent == explicit_user_agent
+
+    await app.close()
 
 
 @pytest.mark.asyncio

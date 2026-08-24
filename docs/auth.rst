@@ -88,6 +88,30 @@ Provider нужен, когда код приходит не из консоли
 Если provider вернет пустую строку или Max отклонит пароль, ``SmsAuthFlow``
 попросит пароль снова.
 
+Количество попыток можно ограничить через ``ExtraConfig``:
+
+.. code-block:: python
+
+   from pymax import Client, ExtraConfig, PasswordAttemptsExceededError
+
+   client = Client(
+       phone="+79990000000",
+       password_provider=EnvPasswordProvider(),
+       extra_config=ExtraConfig(password_max_attempts=3),
+   )
+
+   try:
+       await client.connect()
+   except PasswordAttemptsExceededError:
+       print("Пароль 2FA не принят")
+
+``password_max_attempts=None`` означает неограниченное число попыток и
+сохраняет прежнее поведение. Пустой пароль, ``ApiError``, ошибка в ответе Max
+и ответ без login token расходуют одну попытку. При ``0`` или отрицательном
+значении provider не вызывается, а ``PasswordAttemptsExceededError``
+возникает сразу. Исключение наследуется напрямую от ``Exception``, поэтому
+его нужно перехватывать отдельно от ``PyMaxError``.
+
 Кастомный QR handler
 --------------------
 

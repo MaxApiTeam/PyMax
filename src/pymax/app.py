@@ -12,8 +12,8 @@ from pymax.fingerprint import FingerprintGenerator
 from pymax.logging import get_logger
 from pymax.protocol import Command, InboundFrame, OutboundFrame
 from pymax.protocol.enums import Opcode
-from pymax.session import SessionStore
-from pymax.session.models import SessionInfo
+from pymax.session import InMemoryStore, SessionStore
+from pymax.session.models import SessionInfo, resolve_session_user_agent
 from pymax.telemetry import TelemetryService
 from pymax.types import MaxApiError, Message
 from pymax.types.domain import Chat, HandshakeResponse, Login2Response, Profile, User
@@ -38,9 +38,15 @@ class App(Generic[ClientT]):
         self.dispatcher: Dispatcher[ClientT] = Dispatcher(self, root_router)
         self.api = ApiFacade(self)
         self.config = config
-        self.store = self.config.store or SessionStore(config.work_dir, config.session_name)
+        self.store = (
+            (self.config.store or SessionStore(config.work_dir, config.session_name))
+            if self.config.persist_session
+            else InMemoryStore()
+        )
         self.auth_flow = auth_flow
-        self.fingerprint_generator = FingerprintGenerator()
+        self.fingerprint_generator: FingerprintGenerator | None = (
+            FingerprintGenerator(self.config.fingering) if self.config.fingering else None
+        )
 
         self.me: Profile | None = None
         self.chats: list[Chat] | None = None
@@ -77,6 +83,17 @@ class App(Generic[ClientT]):
             else:
                 session_data.mt_instance_id = self.config.device.mt_instance_id
 
+            if self.config.restore_user_agent_from_session:
+                user_agent = resolve_session_user_agent(
+                    self.config.device.user_agent,
+                    session_data.user_agent,
+                )
+            else:
+                user_agent = self.config.device.user_agent
+            self.config.device.user_agent = user_agent
+            if session_data.user_agent != user_agent:
+                session_data = session_data.model_copy(update={"user_agent": user_agent})
+
         try:
             logger.debug("opening connection")
             await self.connection.open()
@@ -105,6 +122,7 @@ class App(Generic[ClientT]):
                         device_id=self.config.device.device_id,
                         phone=self.config.phone or "",
                         mt_instance_id=self.config.device.mt_instance_id,
+                        user_agent=self.config.device.user_agent,
                     )
                 )
             else:
@@ -120,6 +138,7 @@ class App(Generic[ClientT]):
                         device_id=self.config.device.device_id,
                         phone=self.config.phone or "",
                         mt_instance_id=self.config.device.mt_instance_id,
+                        user_agent=self.config.device.user_agent,
                     )
                 )
                 logger.info("new session saved")

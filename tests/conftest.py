@@ -26,6 +26,7 @@ from pymax.protocol import Command, InboundFrame
 from pymax.session.models import SessionInfo
 from pymax.types.domain import AttachmentType, HandshakeResponse
 from pymax.types.domain.sync import SyncOverrides
+from pymax.versions import VersionCatalog
 
 
 @dataclass
@@ -127,7 +128,13 @@ def mobile_user_agent(
 
 
 def make_config(device_type: DeviceType = DeviceType.ANDROID) -> ClientConfig:
+    user_agent = mobile_user_agent(device_type)
+    fingerprint = (
+        VersionCatalog().resolve(user_agent.app_version) if device_type != DeviceType.WEB else None
+    )
     return ClientConfig(
+        app_version=user_agent.app_version if fingerprint else None,
+        fingering=fingerprint,
         phone="+79990000000",
         work_dir=".",
         session_name="session.db",
@@ -138,7 +145,7 @@ def make_config(device_type: DeviceType = DeviceType.ANDROID) -> ClientConfig:
             mt_instance_id="mt-test",
             device_id="device-test",
             client_session_id=7,
-            user_agent=mobile_user_agent(device_type),
+            user_agent=user_agent,
         ),
     )
 
@@ -165,7 +172,9 @@ class FakeApp:
         self.session: SessionInfo | None = None
         self.handshake_response: HandshakeResponse | None = HandshakeResponse(calls_seed=123)
         self.started = True
-        self.fingerprint_generator = FingerprintGenerator()
+        self.fingerprint_generator = (
+            FingerprintGenerator(self.config.fingering) if self.config.fingering else None
+        )
 
         self.api = SimpleNamespace()
         self.api.uploads = FakeUploads()

@@ -10,8 +10,8 @@ from .enums import AttachmentType
 class ContactAttachment(CamelModel):
     """Контактное вложение сообщения.
 
-    :ivar contact_id: ID контакта.
-    :vartype contact_id: int
+    :ivar contact_id: ID контакта, если Max его прислал.
+    :vartype contact_id: int | None
     :ivar first_name: Имя контакта.
     :vartype first_name: str | None
     :ivar last_name: Фамилия контакта.
@@ -24,7 +24,7 @@ class ContactAttachment(CamelModel):
     :vartype type: Literal[AttachmentType.CONTACT]
     """
 
-    contact_id: int
+    contact_id: int | None = None
     first_name: str | None = None
     last_name: str | None = None
     name: str | None = None

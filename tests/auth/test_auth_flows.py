@@ -70,7 +70,10 @@ class SmsAuthApi:
 async def test_sms_auth_flow_requests_code_and_completes_2fa() -> None:
     auth_api = SmsAuthApi()
     app = SimpleNamespace(
-        config=SimpleNamespace(phone="+79990000000"),
+        config=SimpleNamespace(
+            phone="+79990000000",
+            password_max_attempts=None,
+        ),
         api=SimpleNamespace(auth=auth_api),
     )
     code_provider = StaticCodeProvider()

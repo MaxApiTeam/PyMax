@@ -1,4 +1,5 @@
 from pymax.api.chats import ChannelPermissions
+from pymax.files import Photo
 from pymax.types import Chat, Member, Message
 
 from .protocol import IClientProtocol
@@ -131,20 +132,23 @@ class ChatMixin(IClientProtocol):
     async def change_group_profile(
         self,
         chat_id: int,
-        name: str | None,
+        name: str | None = None,
         description: str | None = None,
+        photo: Photo | None = None,
     ) -> None:
-        """Обновляет название и описание группы.
+        """Обновляет название, описание или фотографию группы.
+
+        ``None`` исключает соответствующее поле из запроса. Фотография
+        автоматически загружается перед обновлением профиля.
 
         Args:
             chat_id: ID группы.
             name: Новое название.
             description: Новое описание.
+            photo: Новая фотография группы.
         """
         await self._app.api.chats.change_group_profile(
-            chat_id=chat_id,
-            name=name,
-            description=description,
+            chat_id=chat_id, name=name, description=description, photo=photo
         )
 
     async def join_group(self, link: str) -> Chat:

@@ -1,3 +1,4 @@
+from pymax.api.messages import DateTimeUnion
 from pymax.api.messages.enums import ItemType
 from pymax.api.messages.service import SendAttachments
 from pymax.types import (
@@ -23,6 +24,7 @@ class MessageMixin(IClientProtocol):
         attachments: SendAttachments = None,
         *,
         notify: bool = True,
+        send_at: DateTimeUnion | None = None,
     ) -> Message:
         """Отправляет сообщение в чат.
 
@@ -32,6 +34,9 @@ class MessageMixin(IClientProtocol):
             reply_to: ID сообщения для ответа.
             attachments: Файлы, фотографии, видео или опросы для отправки.
             notify: Отправить ли получателям push-уведомление.
+            send_at: Время отложенной отправки: ``datetime`` для абсолютного
+                времени, ``timedelta`` для задержки или Unix time в секундах
+                как ``int``. ``None`` и ``0`` отправляют сообщение сразу.
 
         Returns:
             Отправленное сообщение.
@@ -45,6 +50,7 @@ class MessageMixin(IClientProtocol):
             reply_to,
             attachments,
             notify=notify,
+            send_at=send_at,
         )
 
     async def get_message(
@@ -272,7 +278,7 @@ class MessageMixin(IClientProtocol):
     async def add_reaction(
         self,
         chat_id: int,
-        message_id: str,
+        message_id: int,
         reaction: str,
     ) -> ReactionInfo | None:
         """Добавляет реакцию к сообщению.
@@ -294,7 +300,7 @@ class MessageMixin(IClientProtocol):
     async def get_reactions(
         self,
         chat_id: int,
-        message_ids: list[str],
+        message_ids: list[int],
     ) -> dict[str, ReactionInfo] | None:
         """Возвращает реакции для нескольких сообщений.
 
@@ -314,7 +320,7 @@ class MessageMixin(IClientProtocol):
     async def remove_reaction(
         self,
         chat_id: int,
-        message_id: str,
+        message_id: int,
     ) -> ReactionInfo | None:
         """Удаляет свою реакцию с сообщения.
 

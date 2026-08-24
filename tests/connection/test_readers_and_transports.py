@@ -168,7 +168,7 @@ async def test_tcp_transport_proxy_ssl_passes_server_hostname(
     }
     assert open_connection_kwargs == {
         "sock": sock,
-        "ssl": True,
+        "ssl": transport._ssl_ctx,
         "server_hostname": "example.test",
     }
 

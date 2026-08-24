@@ -74,8 +74,9 @@ class ChangeGroupSettingsPayload(CamelModel):
 
 class ChangeGroupProfilePayload(CamelModel):
     chat_id: int
-    theme: str | None
+    theme: str | None = None
     description: str | None = None
+    photo_token: str | None = None
 
 
 class JoinChatPayload(CamelModel):

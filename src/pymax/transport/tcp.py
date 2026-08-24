@@ -1,4 +1,6 @@
 import asyncio
+import ssl
+from importlib import resources
 
 from python_socks.async_.asyncio import Proxy
 
@@ -16,6 +18,10 @@ class TCPTransport(Transport):
         self._port = port
         self._proxy = proxy
         self._use_ssl = use_ssl
+        self._ssl_ctx = ssl.create_default_context()
+        self._ssl_ctx.load_verify_locations(
+            str(resources.files("pymax._data") / "rootca_ssl_rsa2022.crt")
+        )
         self._reader = None
         self._writer = None
 
@@ -26,6 +32,9 @@ class TCPTransport(Transport):
             self._port,
             self._use_ssl,
         )
+        ssl_ctx = self._ssl_ctx if self._use_ssl else None
+        server_hostname = self._host if self._use_ssl else None
+
         if self._proxy:
             logger.debug("tcp connecting via proxy %s", self._proxy)
             proxy = Proxy.from_url(self._proxy)
@@ -33,10 +42,9 @@ class TCPTransport(Transport):
                 dest_host=self._host,
                 dest_port=self._port,
             )
-            server_hostname = self._host if self._use_ssl else None
             self._reader, self._writer = await asyncio.open_connection(
                 sock=sock,
-                ssl=self._use_ssl,
+                ssl=ssl_ctx,
                 server_hostname=server_hostname,
             )
             logger.info(
@@ -50,7 +58,7 @@ class TCPTransport(Transport):
             self._reader, self._writer = await asyncio.open_connection(
                 self._host,
                 self._port,
-                ssl=self._use_ssl,
+                ssl=ssl_ctx,
             )
         logger.info(
             "tcp connected host=%s port=%s ssl=%s",

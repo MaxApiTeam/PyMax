@@ -7,12 +7,15 @@ from pymax.auth import (
     SmsAuthFlow,
     SmsCodeProvider,
 )
+from pymax.config import ClientConfig
 from pymax.connection import ConnectionManager
 from pymax.connection.readers import TCPReader
+from pymax.dispatch import Router
 from pymax.logging import configure_logging, get_logger
 from pymax.protocol.tcp import TcpProtocol
 from pymax.protocol.tcp.framing import TcpPacketFramer
 from pymax.transport.tcp import TCPTransport
+from pymax.versions.catalog import VersionCatalog
 
 from .base import BaseClient
 from .config import ExtraConfig
@@ -37,6 +40,15 @@ class Client(BaseClient["Client"]):
         auth_flow: Полностью пользовательский сценарий авторизации.
         sms_code_provider: Провайдер SMS-кода для стандартного ``SmsAuthFlow``.
         password_provider: Провайдер пароля 2FA, если аккаунт его требует.
+        app_version: Версия Android-клиента для user-agent и fingerprint.
+            По умолчанию используется ``VersionCatalog.recommended()``.
+        catalog: Каталог fingerprints. Если не передан, используется
+            встроенный каталог. Каталог и версия разрешаются при
+            :meth:`connect` или :meth:`start`.
+
+    Raises:
+        VersionNotFoundError: При запуске, если ``app_version`` отсутствует в
+            итоговом каталоге.
     """
 
     def __init__(  # noqa: PLR0913
@@ -48,12 +60,16 @@ class Client(BaseClient["Client"]):
         auth_flow: AuthFlow | None = None,
         sms_code_provider: SmsCodeProvider | None = None,
         password_provider: PasswordProvider | None = None,
+        app_version: str = VersionCatalog.RECOMMENDED_APP_VERSION,
+        catalog: VersionCatalog | None = None,
     ) -> None:
 
-        self.phone = phone
-        self.extra_config = extra_config or ExtraConfig()
-        self.session_name = session_name
-        self.work_dir = work_dir
+        self.phone: str = phone
+        self.extra_config: ExtraConfig = extra_config or ExtraConfig()
+        self.session_name: str = session_name
+        self.work_dir: str = work_dir
+        self.app_version: str = app_version
+        self.catalog: VersionCatalog = catalog or VersionCatalog()
 
         configure_logging(self.extra_config.log_level)
         logger.debug(
@@ -65,23 +81,36 @@ class Client(BaseClient["Client"]):
             self.extra_config.reconnect,
         )
 
-        self._config = self._build_config(
-            phone=phone,
-            user_agent=(self.extra_config.user_agent or self.extra_config.generate_user_agent()),
-        )
-
         if auth_flow is None:
             auth_flow = SmsAuthFlow(
                 sms_code_provider or ConsoleSmsCodeProvider(),
                 password_provider,
             )
-        self._init_runtime(auth_flow=auth_flow)
+        self._auth_flow = auth_flow
+        self._router = Router()
 
         logger.debug(
             "client created transport=tcp host=%s port=%s",
             self.extra_config.host,
             self.extra_config.port,
         )
+
+    async def _prepare_config(self) -> ClientConfig:
+        catalog = await self.catalog.load()
+        fingerprint = catalog.resolve(self.app_version)
+
+        user_agent = self.extra_config.user_agent or self.extra_config.generate_user_agent(
+            self.app_version, fingerprint.build_number
+        )
+
+        config = self._build_config(
+            phone=self.phone,
+            user_agent=user_agent,
+            version=self.app_version,
+            fingerprint=fingerprint,
+        )
+        config.restore_user_agent_from_session = self.extra_config.user_agent is None
+        return config
 
     def _build_connection(self) -> ConnectionManager:
         logger.debug(

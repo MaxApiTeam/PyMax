@@ -14,6 +14,7 @@ from pymax.api.response import (
     require_payload_model,
 )
 from pymax.exceptions import PyMaxError
+from pymax.files import Photo
 from pymax.logging import get_logger
 from pymax.protocol import Opcode
 from pymax.types.domain import Chat, Member, Message
@@ -211,12 +212,18 @@ class ChatService:
         chat_id: int,
         name: str | None,
         description: str | None = None,
+        photo: Photo | None = None,
     ) -> None:
+
         frame = ChangeGroupProfilePayload(
             chat_id=chat_id,
             theme=name,
             description=description,
         )
+
+        if photo:
+            photo_payload = await self.app.api.uploads.upload_photo(photo)
+            frame.photo_token = photo_payload.photo_token
 
         response = await self.app.invoke(Opcode.CHAT_UPDATE, frame.to_payload())
         chat = parse_payload_item_model(response, ChatPayloadKey.CHAT, Chat)

@@ -1,5 +1,5 @@
-from random import choice, randint, random
-from uuid import uuid4
+import secrets
+from random import choice, randint
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -8,8 +8,10 @@ from pymax.api.session.payloads import (
     DEFAULT_WEB_HEADER_USER_AGENT,
     MobileUserAgentPayload,
 )
+from pymax.fingerprint.models import ApkBuildFingerprint
 from pymax.session import StoreProtocol
 from pymax.types.domain.sync import SyncOverrides
+from pymax.versions.catalog import VersionCatalog
 
 MIN_PREFERRED_BUILD = 6712
 APP_VERSIONS: tuple[tuple[str, int], ...] = (
@@ -47,12 +49,12 @@ APP_VERSIONS: tuple[tuple[str, int], ...] = (
     ("26.12.2", 6681),
     ("26.12.1", 6679),
     ("26.12.0", 6676),
-    ("26.11.3", 6670),
-    ("26.11.2", 6669),
-    ("26.11.1", 6665),
-    ("26.10.1", 6653),
-    ("26.10.0", 6648),
-    ("26.9.1", 6643),
+    # ("26.11.3", 6670), # Not supported TODO: delete maybe
+    # ("26.11.2", 6669),
+    # ("26.11.1", 6665),
+    # ("26.10.1", 6653),
+    # ("26.10.0", 6648),
+    # ("26.9.1", 6643),
 )
 ANDROID_DEVICES: tuple[tuple[str, str, str, str], ...] = (
     ("Samsung SM-A525F", "Android 13", "405dpi 405dpi 1080x2400", "arm64-v8a"),
@@ -104,17 +106,21 @@ LOCALE_TIMEZONES: tuple[tuple[str, str], ...] = (
     ("ru", "Asia/Yakutsk"),
     ("ru", "Asia/Vladivostok"),
 )
-WEB_APP_VERSION = "26.7.15"
+WEB_APP_VERSION = "26.8.4"
 WEB_SCREEN = "1080x1920 1.0x"
 
 PREFERRED_VERSION = [version for version in APP_VERSIONS if version[1] >= MIN_PREFERRED_BUILD]
 LEGACY_VERSIONS = [version for version in APP_VERSIONS if version[1] < MIN_PREFERRED_BUILD]
 
 
+def generate_device_id() -> str:
+    return secrets.token_hex(8)
+
+
 class DeviceConfig(BaseModel):
     mt_instance_id: str
     user_agent: MobileUserAgentPayload
-    device_id: str = Field(default_factory=lambda: str(uuid4()))
+    device_id: str = Field(default_factory=generate_device_id)
     client_session_id: int = Field(default_factory=lambda: randint(1, 70))
 
 
@@ -136,6 +142,9 @@ class RegistrationConfig(BaseModel):
 class ClientConfig(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    app_version: str | None = VersionCatalog.RECOMMENDED_APP_VERSION
+    fingering: ApkBuildFingerprint | None
+
     phone: str | None = None
     work_dir: str = "."
     session_name: str = "session.db"
@@ -143,17 +152,21 @@ class ClientConfig(BaseModel):
     token: str | None = None
     proxy: str | None = None
     registration_config: RegistrationConfig | None = None
-
-    host: str = "api.oneme.ru"
+    upload_timeout: int = 900
+    relogin: bool = True
+    host: str = "api2.oneme.ru"
     port: int = 443
     use_ssl: bool = True
+    persist_session: bool = True
 
+    password_max_attempts: int | None = None
     protocol_version: int = 10
     request_timeout: float = 30.0
     log_level: str = "INFO"
     telemetry: bool = False
 
     interactive: bool = True
+    restore_user_agent_from_session: bool = True
 
     store: StoreProtocol | None = None
 
@@ -181,13 +194,35 @@ class ExtraConfig(BaseModel):
         proxy: Proxy URL для TCP- или WebSocket-транспорта.
         reconnect: Переподключаться после сетевых ошибок.
         reconnect_delay: Пауза перед reconnect.
-        device_id: Явный device ID. Если не передан, генерируется UUID.
+        upload_timeout: Общий timeout HTTP-загрузки файлов, видео, голосовых и
+            видеосообщений в секундах. По умолчанию ``900``; не применяется к
+            фотографиям и 60-секундному ожиданию обработки вложения. ``0`` и
+            отрицательные значения отключают общий timeout, но не отдельный
+            60-секундный socket/read timeout.
+        relogin: Автоматически сбрасывать сессию и повторять авторизацию, если
+            Max отозвал login token. По умолчанию ``True``.
+        password_max_attempts: Максимальное число попыток ввода пароля 2FA.
+            ``None`` означает отсутствие лимита; ``0`` и отрицательные значения
+            сразу завершают авторизацию с ``PasswordAttemptsExceededError``.
+        persist_session: Сохранять token, device/user-agent и sync-state между
+            runtime в SQLite или переданном ``store``. По умолчанию ``True``.
+            При ``False`` используется отдельный ``InMemoryStore`` и значение
+            ``store`` игнорируется; после пересоздания runtime, в том числе при
+            reconnect, сохраненная сессия недоступна.
+        device_id: Явный device ID. Если не передан, генерируется строка из
+            16 шестнадцатеричных символов.
         device_type: Тип устройства для mobile user-agent.
-        user_agent: Полностью заданный user-agent payload.
-        mt_instance_id: Instance ID устройства.
+        user_agent: Полностью заданный user-agent payload. Явное значение имеет
+            приоритет над user-agent из сохраненной сессии. Автоматически
+            сгенерированный user-agent восстанавливает характеристики устройства
+            из сессии, сохраняя версию приложения и build number текущего запуска.
+        mt_instance_id: Instance ID устройства. По умолчанию генерируется
+            строка из 16 шестнадцатеричных символов.
         request_timeout: Timeout API-запросов в секундах.
         log_level: Уровень логов ``pymax``.
         telemetry: Отправлять telemetry-события Max.
+        store: Пользовательское хранилище сессии. Используется только при
+            ``persist_session=True``.
         sync: Переопределения sync-маркеров для login.
 
     Example:
@@ -210,18 +245,22 @@ class ExtraConfig(BaseModel):
     token: str | None = None
     registration_config: RegistrationConfig | None = None
 
-    host: str = "api.oneme.ru"
+    host: str = "api2.oneme.ru"
     port: int = 443
     url: str = "wss://api.oneme.ru/websocket"
     use_ssl: bool = True
     proxy: str | None = None
     reconnect: bool = True
     reconnect_delay: float = 1.0
+    upload_timeout: int = 900
+    relogin: bool = True
+    password_max_attempts: int | None = None
+    persist_session: bool = True
 
     device_id: str | None = None
     device_type: DeviceType = DeviceType.ANDROID
     user_agent: MobileUserAgentPayload | None = None
-    mt_instance_id: str = Field(default_factory=lambda: str(uuid4()))
+    mt_instance_id: str = Field(default_factory=generate_device_id)
 
     request_timeout: float = 30.0
     log_level: str = "INFO"
@@ -231,14 +270,17 @@ class ExtraConfig(BaseModel):
 
     sync: SyncOverrides = Field(default_factory=SyncOverrides)
 
-    def generate_user_agent(self) -> MobileUserAgentPayload:
+    def generate_user_agent(self, app_version: str, build_number: int) -> MobileUserAgentPayload:
         """Создает mobile user-agent payload для TCP-клиента.
 
+        Args:
+            app_version: Версия Android-клиента Max.
+            build_number: Build number той же версии из ``VersionCatalog``.
+
         Returns:
-            Случайная, но правдоподобная конфигурация Android-клиента Max.
+            Случайная конфигурация Android-устройства с переданными версией и
+            build number.
         """
-        versions = PREFERRED_VERSION if random() < 0.9 else LEGACY_VERSIONS
-        app_version, build_number = choice(versions)
         device_name, os_version, screen, arch = choice(ANDROID_DEVICES)
         locale, timezone = choice(LOCALE_TIMEZONES)
 

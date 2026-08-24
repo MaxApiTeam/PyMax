@@ -33,3 +33,5 @@ Auth API
 
 .. autoclass:: pymax.ConsoleQrHandler
    :members:
+
+.. autoclass:: pymax.PasswordAttemptsExceededError

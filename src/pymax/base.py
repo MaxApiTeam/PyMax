@@ -3,16 +3,16 @@ from __future__ import annotations
 import asyncio
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
-from uuid import uuid4
 
 from pymax.dispatch import ErrorScope, Router
 from pymax.dispatch.router import DisconnectDecorator, ErrorDecorator
 from pymax.exceptions import ApiError
+from pymax.fingerprint.models import ApkBuildFingerprint
 from pymax.infra import BaseMixin
 from pymax.logging import get_logger
 
 from .app import App
-from .config import ClientConfig, DeviceConfig, ExtraConfig
+from .config import ClientConfig, DeviceConfig, ExtraConfig, generate_device_id
 
 if TYPE_CHECKING:
     from pymax.api.session.payloads import MobileUserAgentPayload
@@ -47,11 +47,21 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
     _connection: ConnectionManager
     _auth_flow: AuthFlow
     _router: Router[ClientT]
-    _app: App[ClientT]
+    __app: App[ClientT] | None = None
+
+    @property
+    def _app(self) -> App[ClientT]:
+        if self.__app is None:
+            raise RuntimeError("Client runtime is not initialized")
+        return self.__app
+
+    @_app.setter
+    def _app(self, value: App[ClientT]) -> None:
+        self.__app = value
 
     @property
     def me(self) -> Profile | None:
-        """Профиль текущего аккаунта после успешного ``start``."""
+        """Профиль текущего аккаунта после успешного login."""
         return self._app.me
 
     @property
@@ -69,11 +79,17 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
         """Сообщения, которые Max вернул на login/sync."""
         return self._app.messages
 
+    @property
+    def is_connected(self) -> bool:
+        return self.__app is not None and self.__app.connection.is_open
+
     def _build_config(
         self,
         *,
         phone: str | None,
         user_agent: MobileUserAgentPayload,
+        version: str | None,
+        fingerprint: ApkBuildFingerprint | None,
     ) -> ClientConfig:
         logger.debug(
             "building client config token_set=%s",
@@ -94,16 +110,37 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
             store=self.extra_config.store,
             proxy=self.extra_config.proxy,
             registration_config=self.extra_config.registration_config,
+            upload_timeout=self.extra_config.upload_timeout,
+            password_max_attempts=self.extra_config.password_max_attempts,
+            relogin=self.extra_config.relogin,
+            app_version=version,
+            fingering=fingerprint,
+            persist_session=self.extra_config.persist_session,
             device=DeviceConfig(
                 mt_instance_id=self.extra_config.mt_instance_id,
-                device_id=self.extra_config.device_id or str(uuid4()),
+                device_id=self.extra_config.device_id or generate_device_id(),
                 user_agent=user_agent,
             ),
         )
 
     @abstractmethod
     def _build_connection(self) -> ConnectionManager:
+
         raise NotImplementedError
+
+    @abstractmethod
+    async def _prepare_config(self) -> ClientConfig:
+        raise NotImplementedError
+
+    async def _ensure_runtime(self: ClientT) -> None:  # noqa: PYI019
+        if getattr(self, "_config", None) is None:
+            self._config = await self._prepare_config()
+
+        if self.__app is not None and self.__app.connection.is_open:
+            return
+
+        self._connection = self._build_connection()
+        self._app = self._build_app()
 
     def _init_runtime(self: ClientT, *, auth_flow: AuthFlow) -> None:  # noqa: PYI019
         self._connection = self._build_connection()
@@ -125,10 +162,43 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
         self._connection = self._build_connection()
         self._app = self._build_app()
 
+    async def connect(self: ClientT) -> None:  # noqa: PYI019
+        """Подключает клиента один раз и возвращается после ``on_start``.
+
+        После возврата соединение остается открытым. В отличие от
+        :meth:`start`, метод не ожидает закрытия соединения и не запускает
+        reconnect loop; завершите работу через :meth:`stop` или :meth:`close`.
+        """
+        try:
+            await self._ensure_runtime()
+            await self._app.start()
+            if not self._app.started:
+                await self.close()
+                return
+
+            await self._app.dispatcher.emit_start(self)
+        except asyncio.CancelledError:
+            await self.close()
+            raise
+        except (ConnectionError, EOFError, OSError, TimeoutError, ApiError) as e:
+            await self.close()
+
+            await self._app.dispatcher.emit_disconnect(
+                e,
+                self.extra_config.reconnect,
+                self.extra_config.reconnect_delay,
+            )
+            raise
+
     async def start(self: ClientT) -> None:  # noqa: PYI019
-        """Запускает клиента и слушает события до закрытия соединения."""
+        """Запускает клиента и слушает события до закрытия соединения.
+
+        При сетевых ошибках повторяет подключение, если ``reconnect=True``.
+        Отозванный login token автоматически сбрасывается при ``relogin=True``.
+        """
         while True:
             try:
+                await self._ensure_runtime()
                 await self._app.start()
                 if not self._app.started:
                     await self.close()
@@ -145,8 +215,9 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
                     raise
 
                 logger.warning("login token was revoked; starting authentication again")
-                await self.relogin(start=False)
-            except (  # noqa: PERF203
+                if self.extra_config.relogin:
+                    await self.relogin(start=False)
+            except (
                 ConnectionError,
                 EOFError,
                 OSError,
@@ -178,7 +249,10 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
 
     async def close(self) -> None:
         """Закрывает соединение, фоновые задачи и файл сессии."""
-        await self._app.close()
+        if self.__app is None:
+            return
+
+        await self.__app.close()
 
     async def stop(self) -> None:
         """Останавливает клиента."""
