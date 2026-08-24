@@ -23,3 +23,5 @@ Clients API
    client-client
    client-web
    client-config
+   client-session
+   client-versions

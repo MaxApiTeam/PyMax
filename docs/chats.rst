@@ -129,10 +129,13 @@ login/sync, а также методы для загрузки, создания
 
 .. code-block:: python
 
+   from pymax import Photo
+
    await client.change_group_profile(
        chat_id=123456,
        name="Новый заголовок",
        description="Описание группы",
+       photo=Photo(path="group.jpg"),
    )
 
    await client.change_group_settings(
@@ -140,6 +143,11 @@ login/sync, а также методы для загрузки, создания
        only_admin_can_add_member=True,
        only_admin_can_call=True,
    )
+
+``name``, ``description`` и ``photo`` независимы: передавайте только поля,
+которые нужно изменить. Значение ``None`` исключает поле из запроса. Перед
+обновлением профиля PyMax автоматически загружает ``Photo`` и отправляет Max
+полученный photo token.
 
 Через объект ``Chat`` можно менять настройки и перевыпускать invite-ссылку:
 

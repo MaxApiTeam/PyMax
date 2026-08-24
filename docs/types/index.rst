@@ -75,9 +75,10 @@ Bound и unbound объекты
 Pydantic validation error
 -------------------------
 
-Вложения распознаются по discriminator-полю ``_type``. Если Max прислал новый
-тип или неполный payload, Pydantic может выбросить validation error. Для
-диагностики включите ``DEBUG`` и посмотрите ``on_raw``.
+Вложения распознаются по discriminator-полю ``_type``. Неизвестный тип
+преобразуется в ``UnknownAttachment`` с исходными дополнительными полями.
+Validation error по-прежнему возможен для поврежденного или неполного payload-а
+уже известного типа; для диагностики включите ``DEBUG`` и посмотрите ``on_raw``.
 
 API reference
 -------------

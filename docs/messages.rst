@@ -83,6 +83,57 @@ Messages
        source_chat_id=123456,
    )
 
+Reply и forward во входящем сообщении
+-------------------------------------
+
+Если сообщение является reply или forward, поле ``message.link`` содержит
+исходное ``message`` и его ``chat_id``. Для forward Max также может прислать
+``chat_name``, ``chat_link``, ``chat_access_type`` и ``chat_icon_url``; для
+скрытого источника эти поля равны ``None``. У обычного сообщения ``link`` равен
+``None``.
+
+.. code-block:: python
+
+   @client.on_message()
+   async def on_message(message: Message, client: Client) -> None:
+       if message.link is not None:
+           print("source:", message.link.chat_id, message.link.message.id)
+
+Отложенная отправка
+-------------------
+
+``client.send_message()``, ``message.answer()`` и ``message.reply()`` принимают
+``send_at`` трех видов:
+
+* ``datetime`` - абсолютное время отправки;
+* ``timedelta`` - задержка относительно текущего локального времени;
+* ``int`` - Unix time в секундах.
+
+.. code-block:: python
+
+   from datetime import datetime, timedelta, timezone
+
+   await client.send_message(
+       chat_id=123456,
+       text="Через пять минут",
+       send_at=timedelta(minutes=5),
+   )
+
+   await client.send_message(
+       chat_id=123456,
+       text="В назначенное время",
+       send_at=datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc),
+       notify=False,
+   )
+
+``None`` и ``0`` означают немедленную отправку. Значение ``notify`` также
+используется сервером при срабатывании отложенного сообщения.
+
+У полученного отложенного сообщения поле ``delayed_attributes`` содержит
+``time_to_fire`` в миллисекундах и флаги уведомлений. Для обычного сообщения
+оно равно ``None``. Получить отложенные сообщения можно через
+``fetch_history(item_type=ItemType.DELAYED)``.
+
 Опросы
 ------
 
@@ -135,7 +186,7 @@ Messages
                    print(state.total)
 
 Ответ, реакции, удаление и прочтение
-----------------------------------------
+------------------------------------
 
 .. code-block:: python
 
@@ -159,6 +210,11 @@ Messages
    для отметки прочтения TCP-клиент ожидает ``message_id`` как ``int``, а
    WebSocket-клиент - как ``str``. Если вызываете метод напрямую, выбирайте
    тип по клиенту.
+
+Методы ``add_reaction()``, ``get_reactions()`` и ``remove_reaction()``
+принимают ID сообщений только как ``int``. При этом ``get_reactions()``
+возвращает словарь со строковыми ключами, потому что именно так ID приходят в
+ответе Max.
 
 Служебные события
 -----------------
@@ -232,10 +288,15 @@ Max присылает разные формы событий. Некоторы�
 полю ``type``: фото, видео, файл, стикер, аудио, опрос, контакт, звонок, share
 или inline-клавиатура.
 
+Неизвестный ``_type`` не отклоняет все сообщение: PyMax возвращает
+``UnknownAttachment``, сохраняет исходный тип в ``type``, а остальные поля - в
+``model_extra``. Это позволяет принять payload нового типа до добавления его
+отдельной модели в библиотеку.
+
 .. code-block:: python
 
    from pymax import Client, Message
-   from pymax.types.domain import FileAttachment, PhotoAttachment
+   from pymax.types.domain import FileAttachment, PhotoAttachment, UnknownAttachment
 
    @client.on_message()
    async def on_message(message: Message, client: Client) -> None:
@@ -252,6 +313,8 @@ Max присылает разные формы событий. Некоторы�
                    file_id=attach.file_id,
                )
                print(file_info.url if file_info else "no url")
+           elif isinstance(attach, UnknownAttachment):
+               print("unknown:", attach.type, attach.model_extra)
 
 Частые ошибки
 -------------
@@ -266,6 +329,7 @@ Max присылает разные формы событий. Некоторы�
    знаете ``chat_id`` из другого источника.
 
 Pydantic validation error на attachments
-   Max мог прислать новый или неполный тип вложения. Включите debug-логи,
-   посмотрите raw payload через ``on_raw`` и обновите PyMax или добавьте
-   обработку нового формата.
+   Неизвестный ``_type`` обрабатывается через ``UnknownAttachment``, но
+   поврежденный или неполный payload уже известного типа все еще может не пройти
+   валидацию. Включите debug-логи, посмотрите raw payload через ``on_raw`` и
+   обновите PyMax или добавьте обработку нового формата.

@@ -13,6 +13,9 @@ Domain enums
 .. autoclass:: pymax.types.domain.enums.MessageStatus
    :members:
 
+.. autoclass:: pymax.types.domain.enums.LinkType
+   :members:
+
 .. autoclass:: pymax.types.domain.attachments.enums.AttachmentType
    :members:
 
@@ -20,6 +23,12 @@ Domain enums
    :members:
 
 .. autoclass:: pymax.types.domain.attachments.enums.PollFlags
+   :members:
+
+.. autoclass:: pymax.types.domain.attachments.enums.CallType
+   :members:
+
+.. autoclass:: pymax.types.domain.attachments.enums.HangupType
    :members:
 
 Chat API enums
