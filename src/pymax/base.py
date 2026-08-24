@@ -81,8 +81,7 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
 
     @property
     def is_connected(self) -> bool:
-        """Показывает, открыто ли соединение запущенного runtime."""
-        return self._app.connection.is_open
+        return self.__app is not None and self.__app.connection.is_open
 
     def _build_config(
         self,
@@ -136,6 +135,10 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
     async def _ensure_runtime(self: ClientT) -> None:  # noqa: PYI019
         if getattr(self, "_config", None) is None:
             self._config = await self._prepare_config()
+
+        if self.__app is not None and self.__app.connection.is_open:
+            return
+
         self._connection = self._build_connection()
         self._app = self._build_app()
 
@@ -246,7 +249,10 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
 
     async def close(self) -> None:
         """Закрывает соединение, фоновые задачи и файл сессии."""
-        await self._app.close()
+        if self.__app is None:
+            return
+
+        await self.__app.close()
 
     async def stop(self) -> None:
         """Останавливает клиента."""

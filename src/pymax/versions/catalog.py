@@ -81,8 +81,8 @@ class VersionCatalog:
             aiohttp.ClientSession() as session,
             session.get(self.DEFAULT_REMOTE_URL) as response,
         ):
-            data = await response.json()
             response.raise_for_status()
+            data = await response.json()
 
             if not isinstance(data, dict):
                 raise ValueError  # TODO: msg
