@@ -15,8 +15,8 @@ Format:
 
 ## Bugs
 
-- [ ] Исправить голосовые/кружки. `api/upload/service.py`. P: 100
-- [ ] Исправить генерацию device_id. `src/pymax/base.py:106`. P: 80
+- [X] Исправить голосовые/кружки. `api/upload/service.py`. P: 100
+- [X] Исправить генерацию device_id. `src/pymax/base.py:111`. P: 80
 
 ## Features
 
@@ -29,9 +29,11 @@ Format:
 - [ ] src/pymax/api/chats/payloads.py:100: ENUMM!!!
 - [ ] src/pymax/api/chats/payloads.py:123: ENUMM!!!
 - [ ] src/pymax/api/messages/payloads.py:32: enum?
-- [ ] src/pymax/api/uploads/service.py:66: ENUM!!!!
+- [ ] src/pymax/api/messages/service.py:94: TypeAlias
+- [ ] src/pymax/api/uploads/service.py:68: ENUM!!!!
+- [ ] src/pymax/api/uploads/service.py:286: Error handing (yes, with 200 status 💔)
 - [ ] src/pymax/api/users/service.py:133: maybe also return phone mapping?
-- [ ] src/pymax/base.py:222: maybe impl it better way
+- [ ] src/pymax/base.py:226: maybe impl it better way
 - [ ] src/pymax/config.py:52: delete maybe
 - [ ] src/pymax/dispatch/dispatcher.py:190: create iter_on_start_handlers
 - [ ] src/pymax/protocol/tcp/payload.py:34: deprecate? idk
