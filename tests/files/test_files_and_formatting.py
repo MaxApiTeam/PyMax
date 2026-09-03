@@ -70,3 +70,29 @@ def test_markdown_formatter_extracts_functional_entities() -> None:
     ]
     assert entities[-1].attributes is not None
     assert entities[-1].attributes.url == "https://example.com"
+
+
+def test_markdown_formatter_preserves_intraword_single_markers() -> None:
+    text = "https://max.ru/channel_iclub_new snake_case_name цена 5*2 = 10"
+
+    clean, entities = Formatter.format_markdown(text)
+
+    assert clean == text
+    assert entities == []
+
+
+def test_markdown_formatter_preserves_unclosed_single_marker_before_intraword_marker() -> None:
+    clean, entities = Formatter.format_markdown("_foo_bar")
+
+    assert clean == "_foo_bar"
+    assert entities == []
+
+
+def test_markdown_formatter_still_parses_delimited_single_marker_emphasis() -> None:
+    clean, entities = Formatter.format_markdown("Hello _world_ and *again*")
+
+    assert clean == "Hello world and again"
+    assert [(entity.type, entity.from_, entity.length) for entity in entities] == [
+        ("EMPHASIZED", 6, 5),
+        ("EMPHASIZED", 16, 5),
+    ]

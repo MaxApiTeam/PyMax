@@ -52,6 +52,29 @@ class Formatter:
         return label, url, url_end + 1
 
     @staticmethod
+    def _is_intraword_single_marker(text: str, i: int, marker: str) -> bool:
+        if marker not in {"_", "*"}:
+            return False
+        if i == 0 or i + 1 >= len(text):
+            return False
+        return text[i - 1].isalnum() and text[i + 1].isalnum()
+
+    @staticmethod
+    def _find_closing_marker(
+        text: str,
+        marker: str,
+        start: int,
+        end: int | None = None,
+    ) -> int:
+        while True:
+            closing_index = text.find(marker, start, len(text) if end is None else end)
+            if closing_index == -1:
+                return -1
+            if not Formatter._is_intraword_single_marker(text, closing_index, marker):
+                return closing_index
+            start = closing_index + len(marker)
+
+    @staticmethod
     def format_markdown(text: str) -> tuple[str, list[Element]]:
         clean_text = ""
         entities: list[Element] = []
@@ -155,6 +178,8 @@ class Formatter:
             for marker in Formatter.MARKER_ORDER:
                 if not text.startswith(marker, i):
                     continue
+                if Formatter._is_intraword_single_marker(text, i, marker):
+                    continue
 
                 marker_len = len(marker)
 
@@ -180,7 +205,8 @@ class Formatter:
                         break
 
                     end = text.find("\n", i + marker_len)
-                    closing_index = text.find(
+                    closing_index = Formatter._find_closing_marker(
+                        text,
                         marker,
                         i + marker_len,
                         None if end == -1 else end,
