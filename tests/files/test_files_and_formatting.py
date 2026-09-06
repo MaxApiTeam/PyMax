@@ -96,3 +96,12 @@ def test_markdown_formatter_still_parses_delimited_single_marker_emphasis() -> N
         ("EMPHASIZED", 6, 5),
         ("EMPHASIZED", 16, 5),
     ]
+
+
+def test_markdown_formatter_still_parses_intraword_asterisk_emphasis() -> None:
+    clean, entities = Formatter.format_markdown("foo*bar*baz")
+
+    assert clean == "foobarbaz"
+    assert [(entity.type, entity.from_, entity.length) for entity in entities] == [
+        ("EMPHASIZED", 3, 3),
+    ]

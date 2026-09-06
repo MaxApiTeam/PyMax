@@ -53,7 +53,7 @@ class Formatter:
 
     @staticmethod
     def _is_intraword_single_marker(text: str, i: int, marker: str) -> bool:
-        if marker not in {"_", "*"}:
+        if marker != "_":
             return False
         if i == 0 or i + 1 >= len(text):
             return False
