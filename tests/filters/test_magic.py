@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 from pymax.filters import Command, F, FromMe, HasAttachment
 from pymax.types import Chat, Message, PhotoAttachment
+from pymax.types.domain.message import ReplyLink
 
 
 def make_message(**kwargs) -> Message:
@@ -54,22 +55,38 @@ def test_chat_container_exposes_all_chat_fields() -> None:
     assert fields == set(Chat.model_fields)
 
 
-def test_message_field_filters_support_comparison_and_logical_operations() -> None:
+def test_message_link_filters_resolve_direct_and_nested_links() -> None:
+    client = make_client()
+    link = ReplyLink(message=make_message(), chat_id=100)
+    message = make_message(id=2, link=link)
+    chat = make_chat(last_message=message, pinned_message=message)
+
+    assert F.message.link(message, client) is True
+    assert (F.message.link == link)(message, client) is True
+    assert F.message.link(make_message(), client) is False
+    assert F.message.link.is_none()(make_message(), client) is True
+    assert (F.chat.last_message.link == link)(chat, client) is True
+    assert F.chat.pinned_message.link(chat, client) is True
+    assert F.chat.last_message.link.is_none()(make_chat(), client) is False
+    assert F.message.link(chat, client) is False
+
+
+async def test_message_field_filters_support_comparison_and_logical_operations() -> None:
     message = make_message()
     client = make_client()
     filter_ = F.message.text.contains("hello") & ~(F.message.sender == 20)
 
-    assert filter_(message, client) is True
+    assert await filter_(message, client) is True
     assert (F.message.chat_id == 100)(message, client) is True
     assert (F.message.chat_id == 200)(message, client) is False
 
 
-def test_chat_field_filters_support_comparison_and_logical_operations() -> None:
+async def test_chat_field_filters_support_comparison_and_logical_operations() -> None:
     chat = make_chat()
     client = make_client()
     filter_ = F.chat.title.contains("PyMax") & (F.chat.owner == 10)
 
-    assert filter_(chat, client) is True
+    assert await filter_(chat, client) is True
     assert (F.chat.status == "INACTIVE")(chat, client) is False
 
 
@@ -121,19 +138,19 @@ def test_text_field_filters_support_case_sensitive_and_insensitive_matching() ->
     assert F.message.text.endswith("PYMAX", ignore_case=True)(message, client) is True
 
 
-def test_presets_support_and_composition() -> None:
+async def test_presets_support_and_composition() -> None:
     client = make_client()
     filter_ = HasAttachment(PhotoAttachment) & FromMe()
 
-    assert filter_(make_message(attaches=[make_photo()]), client) is True
-    assert filter_(make_message(sender=20, attaches=[make_photo()]), client) is False
-    assert filter_(make_message(), client) is False
+    assert await filter_(make_message(attaches=[make_photo()]), client) is True
+    assert await filter_(make_message(sender=20, attaches=[make_photo()]), client) is False
+    assert await filter_(make_message(), client) is False
 
 
-def test_presets_support_or_composition() -> None:
+async def test_presets_support_or_composition() -> None:
     client = make_client()
     filter_ = Command("start") | HasAttachment(PhotoAttachment)
 
-    assert filter_(make_message(text="/start"), client) is True
-    assert filter_(make_message(text="hello", attaches=[make_photo()]), client) is True
-    assert filter_(make_message(text="hello"), client) is False
+    assert await filter_(make_message(text="/start"), client) is True
+    assert await filter_(make_message(text="hello", attaches=[make_photo()]), client) is True
+    assert await filter_(make_message(text="hello"), client) is False

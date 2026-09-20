@@ -122,7 +122,7 @@ from pymax import Client, ClientRouter, Message
 router = ClientRouter()
 
 
-def is_start(message: Message) -> bool:
+def is_start(message: Message, client: Client) -> bool:
     return message.text == "/start"
 
 

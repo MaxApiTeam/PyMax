@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TypeVar
 
 from .base import ClientT_contra, Filter, PathResolver
-
-if TYPE_CHECKING:
-    from pymax.base import BaseClient
 
 EventT = TypeVar("EventT")
 
