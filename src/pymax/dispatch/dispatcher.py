@@ -282,8 +282,9 @@ class Dispatcher(Generic[ClientT]):
         for flt in entry.filters:
             if not self.client:
                 return False
-            filter_match = flt(event, self.client)
-            result = await flt.resolve_filter_result(filter_match)
+            result = flt(event, self.client)
+            if inspect.isawaitable(result):
+                result = await result
 
             if not result:
                 logger.debug(

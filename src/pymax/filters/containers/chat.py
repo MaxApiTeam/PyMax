@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 import builtins
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
 from pymax.filters.base import ClientT_contra, Filter, PathResolver
 from pymax.filters.refs import FieldRef, NumberFieldRef, TextFieldRef
 
 from .message import MessageContainer
-
-if TYPE_CHECKING:
-    from pymax.base import BaseClient
 
 EventT = TypeVar("EventT")
 

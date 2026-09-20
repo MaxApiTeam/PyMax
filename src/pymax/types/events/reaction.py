@@ -6,7 +6,7 @@ class ReactionUpdateEvent(CamelModel):
     """Событие обновления реакций сообщения.
 
     :ivar message_id: ID сообщения.
-    :vartype message_id: str
+    :vartype message_id: int
     :ivar chat_id: ID чата.
     :vartype chat_id: int
     :ivar counters: Счетчики реакций по типам.
@@ -15,7 +15,7 @@ class ReactionUpdateEvent(CamelModel):
     :vartype total_count: int
     """
 
-    message_id: str
+    message_id: int
     chat_id: int
     counters: list[ReactionCounter] | None = None
     total_count: int = 0

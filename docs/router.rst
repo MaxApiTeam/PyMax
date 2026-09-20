@@ -32,7 +32,7 @@ Router
    router = ClientRouter()
 
 
-   def is_start(message: Message) -> bool:
+   def is_start(message: Message, client: Client) -> bool:
        return message.text == "/start"
 
 
@@ -103,8 +103,8 @@ Root router
 Фильтры
 -------
 
-Фильтр - это функция, которая получает событие и возвращает ``True`` или
-``False``. Фильтры могут быть async.
+Фильтр получает событие и клиента, возвращает ``True`` или ``False``.
+Можно использовать обычную функцию, async-функцию или объект ``Filter``.
 
 .. code-block:: python
 
@@ -113,11 +113,11 @@ Root router
    router = ClientRouter()
 
 
-   def only_text(message: Message) -> bool:
+   def only_text(message: Message, client: Client) -> bool:
        return bool(message.text)
 
 
-   async def only_private(message: Message) -> bool:
+   async def only_private(message: Message, client: Client) -> bool:
        return message.chat_id is not None and message.chat_id > 0
 
 
@@ -127,6 +127,20 @@ Root router
 
 Все фильтры должны вернуть ``True``. Если хотя бы один фильтр вернул ``False``,
 handler не вызывается.
+
+Фильтры ``F`` и готовые фильтры можно объединять операторами ``&``, ``|`` и
+``~``. Роутер сам ожидает результат составного фильтра. При прямом вызове
+составного фильтра нужен ``await``.
+
+.. code-block:: python
+
+   from pymax.filters import F
+
+   has_text_without_link = F.message.text & F.message.link.is_none()
+
+   @router.on_message(has_text_without_link)
+   async def handle_text(message: Message, client: Client) -> None:
+       await message.answer("Сообщение без ответа или пересылки")
 
 Почему handler принимает event и client
 ---------------------------------------

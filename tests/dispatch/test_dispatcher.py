@@ -46,6 +46,44 @@ async def test_dispatcher_routes_message_events_through_filters_and_raw_handler(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("allowed", [True, False])
+async def test_dispatcher_awaits_callable_filters_and_short_circuits(allowed: bool) -> None:
+    app = FakeApp()
+    router: Router[str] = Router()
+    dispatcher: Dispatcher[str] = Dispatcher(app, router)
+    dispatcher.bind_client("client")
+    seen: list[str] = []
+
+    async def is_allowed(message, client):
+        assert message.id == 1
+        assert client == "client"
+        seen.append("async filter")
+        return allowed
+
+    def last_filter(message, client):
+        seen.append("last filter")
+        return True
+
+    @router.on_message(
+        F.message.text.contains("start") & (F.message.chat_id == 100),
+        is_allowed,
+        last_filter,
+    )
+    async def on_message(message, client):
+        seen.append("handler")
+
+    await dispatcher.dispatch(
+        frame(
+            {"chatId": 100, "message": message_payload(1, 100, "/start")},
+            opcode=Opcode.NOTIF_MESSAGE,
+            cmd=Command.REQUEST,
+        )
+    )
+
+    assert seen == (["async filter", "last filter", "handler"] if allowed else ["async filter"])
+
+
+@pytest.mark.asyncio
 async def test_dispatcher_evaluates_all_magic_filters() -> None:
     app = FakeApp()
     router: Router[str] = Router()
@@ -217,7 +255,7 @@ async def test_dispatcher_maps_reaction_update_event() -> None:
     router: Router[str] = Router()
     dispatcher: Dispatcher[str] = Dispatcher(app, router)
     dispatcher.bind_client("client")
-    seen: list[tuple[str, int, int, int, str]] = []
+    seen: list[tuple[int, int, int, int, str]] = []
 
     @router.on_reaction_update()
     async def on_reaction_update(event, _client):
@@ -234,7 +272,7 @@ async def test_dispatcher_maps_reaction_update_event() -> None:
     await dispatcher.dispatch(
         frame(
             {
-                "messageId": "116739131144745294",
+                "messageId": 116739131144745294,
                 "chatId": 239067070,
                 "counters": [{"count": 1, "reaction": "👍"}],
                 "totalCount": 1,
@@ -244,7 +282,7 @@ async def test_dispatcher_maps_reaction_update_event() -> None:
         )
     )
 
-    assert seen == [("116739131144745294", 239067070, 1, 1, "👍")]
+    assert seen == [(116739131144745294, 239067070, 1, 1, "👍")]
 
 
 @pytest.mark.asyncio

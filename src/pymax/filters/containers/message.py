@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import builtins
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
 from pymax.filters.base import ClientT_contra, Filter, PathResolver
 from pymax.filters.refs import FieldRef, NumberFieldRef, TextFieldRef
-
-if TYPE_CHECKING:
-    from pymax.base import BaseClient
 
 EventT = TypeVar("EventT")
 
@@ -60,6 +57,13 @@ class MessageContainer(Filter[EventT, ClientT_contra], PathResolver):
     def type(self) -> TextFieldRef:
         return TextFieldRef(
             path=[*self.path, "type"],
+            expected_type=self.expected_type,
+        )
+
+    @property
+    def link(self) -> FieldRef:
+        return FieldRef(
+            path=[*self.path, "link"],
             expected_type=self.expected_type,
         )
 
