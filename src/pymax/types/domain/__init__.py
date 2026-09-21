@@ -2,6 +2,7 @@ from .attachments import *
 from .bots import InitData
 from .callback import CallbackResponse
 from .chat import Chat
+from .comment import CommentsInfo, CommentsInfoUpdate
 from .error import MaxApiError
 from .folder import Folder, FolderList, FolderUpdate
 from .handshake import HandshakeResponse

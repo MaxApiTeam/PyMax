@@ -22,9 +22,11 @@ from pymax.types.domain import Chat, Member, Message
 from .enums import ChannelPermissions, ChatLinkPrefix, ChatMemberOperation, ChatPayloadKey
 from .payloads import (
     AddAdminPayload,
+    BlockCommentAuthorPayload,
     ChangeGroupProfilePayload,
     ChangeGroupSettingsOptions,
     ChangeGroupSettingsPayload,
+    ChannelCommentsOptions,
     CreateGroupAttach,
     CreateGroupMessage,
     CreateGroupPayload,
@@ -40,6 +42,7 @@ from .payloads import (
     LinkInfoPayload,
     RemoveUsersPayload,
     ReworkInviteLinkPayload,
+    SetChannelCommentsPayload,
 )
 
 if TYPE_CHECKING:
@@ -422,3 +425,34 @@ class ChatService:
         )
 
         await self.app.invoke(Opcode.CHAT_MEMBERS_UPDATE, frame.to_payload())
+
+    async def set_channel_comments(self, chat_id: int, enabled: bool) -> None:
+        frame = SetChannelCommentsPayload(
+            chat_id=chat_id,
+            options=ChannelCommentsOptions(comments=enabled),
+        )
+        response = await self.app.invoke(Opcode.CHAT_UPDATE, frame.to_payload())
+        chat = parse_payload_item_model(response, ChatPayloadKey.CHAT, Chat)
+        if chat:
+            self._cache_chat(chat)
+
+    async def block_comment_author(
+        self,
+        chat_id: int,
+        post_id: int,
+        user_ids: list[int],
+        message_id: int,
+        clean_msg_period: int = 0,
+    ) -> bool:
+        frame = BlockCommentAuthorPayload(
+            chat_id=chat_id,
+            post_id=post_id,
+            user_ids=user_ids,
+            message_id=message_id,
+            clean_msg_period=clean_msg_period,
+        )
+        response = await self.app.invoke(Opcode.CHAT_MEMBERS_UPDATE, frame.to_payload())
+        chat = parse_payload_item_model(response, ChatPayloadKey.CHAT, Chat)
+        if chat:
+            self._cache_chat(chat)
+        return True

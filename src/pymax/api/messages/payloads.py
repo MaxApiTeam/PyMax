@@ -18,6 +18,10 @@ class GetMessagesPayload(CamelModel):
     message_ids: list[int]
 
 
+class GetCommentsPayload(GetMessagesPayload):
+    post_id: int
+
+
 class EditMessagePayload(CamelModel):
     chat_id: int
     message_id: int
@@ -26,6 +30,10 @@ class EditMessagePayload(CamelModel):
     attachments: list[AttachPhotoPayload | VideoAttachPayload | AttachFilePayload | Poll] = Field(
         default_factory=list
     )
+
+
+class EditCommentPayload(EditMessagePayload):
+    post_id: int
 
 
 class ReplyLink(CamelModel):
@@ -51,6 +59,10 @@ class SendMessagePayload(CamelModel):
     chat_id: int
     message: SendMessagePayloadMessage
     notify: bool = False
+
+
+class SendCommentPayload(SendMessagePayload):
+    post_id: int
 
 
 class ForwardLink(CamelModel):
@@ -84,6 +96,10 @@ class ChatHistoryPayload(CamelModel):
     item_type: ItemType = ItemType.REGULAR
     get_messages: bool = True
     interactive: bool = False
+
+
+class CommentsHistoryPayload(ChatHistoryPayload):
+    post_id: int
 
 
 class DeleteMessagePayload(CamelModel):
@@ -143,3 +159,33 @@ class VotePollPayload(CamelModel):
     message_id: int
     poll_id: int
     answers_ids: list[int]
+
+
+class DeleteCommentPayload(DeleteMessagePayload):
+    post_id: int
+
+
+class AddCommentReactionPayload(AddReactionPayload):
+    post_id: int
+
+
+class RemoveCommentReactionPayload(RemoveReactionPayload):
+    post_id: int
+
+
+class SubscribeCommentsPayload(CamelModel):
+    chat_id: int
+    post_id: int
+    subscribe: bool = True
+
+
+class GetCommentsInfoPayload(CamelModel):
+    chat_id: int
+    post_ids: list[int]
+
+
+class DeleteUserCommentsPayload(CamelModel):
+    chat_id: int
+    post_id: int
+    user_id: int
+    message_id: int

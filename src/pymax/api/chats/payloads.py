@@ -137,3 +137,22 @@ class AddAdminPayload(CamelModel):
     type: PermType = PermType.ADMIN
     operation: str = "add"
     permissions: int
+
+
+class ChannelCommentsOptions(CamelModel):
+    comments: bool = Field(serialization_alias=ChatOption.COMMENTS.value)
+
+
+class SetChannelCommentsPayload(CamelModel):
+    chat_id: int
+    options: ChannelCommentsOptions
+
+
+class BlockCommentAuthorPayload(CamelModel):
+    chat_id: int
+    post_id: int
+    user_ids: list[int]
+    message_id: int
+    type: Literal["COMMENTS_BLACKLIST"] = "COMMENTS_BLACKLIST"
+    operation: ChatMemberOperation = ChatMemberOperation.ADD
+    clean_msg_period: int = 0

@@ -2,6 +2,7 @@ from pymax.api.messages import DateTimeUnion
 from pymax.api.messages.enums import ItemType
 from pymax.api.messages.service import SendAttachments
 from pymax.types import (
+    CommentsInfoUpdate,
     FileRequest,
     Message,
     PollState,
@@ -378,4 +379,178 @@ class MessageMixin(IClientProtocol):
             message_id=message_id,
             poll_id=poll_id,
             answer_ids=answer_ids,
+        )
+
+    async def send_comment(
+        self,
+        chat_id: int,
+        post_id: int,
+        text: str | None = None,
+        reply_to: int | None = None,
+        attachments: SendAttachments = None,
+        *,
+        notify: bool = True,
+    ) -> Message:
+        """Отправляет комментарий к посту канала.
+
+        ``reply_to`` задает ID комментария для ответа; текст поддерживает markdown.
+        """
+        return await self._app.api.messages.send_comment(
+            chat_id=chat_id,
+            post_id=post_id,
+            text=text,
+            reply_to=reply_to,
+            attachments=attachments,
+            notify=notify,
+        )
+
+    async def fetch_comments(
+        self,
+        chat_id: int,
+        post_id: int,
+        from_: int | None = None,
+        backward: int = 30,
+        get_messages: bool = True,
+        forward: int = 0,
+    ) -> list[Message]:
+        """Возвращает комментарии к посту канала."""
+        return await self._app.api.messages.fetch_comments(
+            chat_id=chat_id,
+            post_id=post_id,
+            from_=from_,
+            backward=backward,
+            get_messages=get_messages,
+            forward=forward,
+        )
+
+    async def get_comments(
+        self,
+        chat_id: int,
+        post_id: int,
+        message_ids: list[int],
+    ) -> list[Message]:
+        """Возвращает конкретные комментарии поста по их ID."""
+        return await self._app.api.messages.get_comments(
+            chat_id=chat_id,
+            post_id=post_id,
+            message_ids=message_ids,
+        )
+
+    async def get_comment(
+        self,
+        chat_id: int,
+        post_id: int,
+        message_id: int,
+    ) -> Message | None:
+        """Возвращает комментарий по ID или ``None``, если он не найден."""
+        return await self._app.api.messages.get_comment(
+            chat_id=chat_id,
+            post_id=post_id,
+            message_id=message_id,
+        )
+
+    async def edit_comment(
+        self,
+        chat_id: int,
+        post_id: int,
+        message_id: int,
+        text: str | None = None,
+        attachments: SendAttachments = None,
+    ) -> Message:
+        """Редактирует текст и вложения комментария. Текст поддерживает markdown."""
+        return await self._app.api.messages.edit_comment(
+            chat_id=chat_id,
+            post_id=post_id,
+            message_id=message_id,
+            text=text,
+            attachments=attachments,
+        )
+
+    async def delete_comment(
+        self,
+        chat_id: int,
+        post_id: int,
+        message_ids: list[int],
+        for_me: bool = False,
+    ) -> bool:
+        """Удаляет комментарии поста. По умолчанию удаляет для всех."""
+        return await self._app.api.messages.delete_comment(
+            chat_id=chat_id,
+            post_id=post_id,
+            message_ids=message_ids,
+            for_me=for_me,
+        )
+
+    async def add_comment_reaction(
+        self,
+        chat_id: int,
+        post_id: int,
+        message_id: int,
+        reaction: str,
+    ) -> ReactionInfo | None:
+        """Добавляет или заменяет свою emoji-реакцию на комментарии."""
+        return await self._app.api.messages.add_comment_reaction(
+            chat_id=chat_id,
+            post_id=post_id,
+            message_id=message_id,
+            reaction=reaction,
+        )
+
+    async def remove_comment_reaction(
+        self,
+        chat_id: int,
+        post_id: int,
+        message_id: int,
+    ) -> ReactionInfo | None:
+        """Удаляет свою реакцию с комментария."""
+        return await self._app.api.messages.remove_comment_reaction(
+            chat_id=chat_id,
+            post_id=post_id,
+            message_id=message_id,
+        )
+
+    async def subscribe_comments(
+        self,
+        chat_id: int,
+        post_id: int,
+        subscribe: bool = True,
+    ) -> None:
+        """Подписывается на события ветки комментариев.
+
+        Для поддержания подписки повторяйте вызов раз в минуту.
+        ``subscribe=False`` отменяет подписку.
+        """
+        return await self._app.api.messages.subscribe_comments(
+            chat_id=chat_id,
+            post_id=post_id,
+            subscribe=subscribe,
+        )
+
+    async def get_comments_info(
+        self,
+        chat_id: int,
+        post_ids: list[int],
+    ) -> list[CommentsInfoUpdate]:
+        """Возвращает список обновлений счетчиков комментариев постов."""
+        return await self._app.api.messages.get_comments_info(
+            chat_id=chat_id,
+            post_ids=post_ids,
+        )
+
+    async def delete_user_comments(
+        self,
+        chat_id: int,
+        post_id: int,
+        user_id: int,
+        message_id: int,
+    ) -> bool:
+        """Удаляет комментарии автора в ветке указанного поста.
+
+        ``message_id`` — ID комментария этого автора.
+        """
+        return await self._app.api.messages.delete_user_comments(
+            chat_id=chat_id,
+            post_id=post_id,
+            user_id=user_id,
+            message_id=message_id,
         )
