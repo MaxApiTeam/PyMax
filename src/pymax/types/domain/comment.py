@@ -8,7 +8,7 @@ class CommentsInfo(CamelModel):
     :vartype total_count: int
     """
 
-    total_count: int
+    total_count: int = 0
 
 
 class CommentsInfoUpdate(CamelModel):
