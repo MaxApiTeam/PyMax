@@ -1,4 +1,4 @@
-from typing import Annotated, Any, Literal, TypeAlias
+from typing import Annotated, Literal, TypeAlias
 
 from pydantic import Field
 
@@ -65,10 +65,11 @@ Button: TypeAlias = Annotated[
     | ClipboardButton,
     Field(discriminator="type"),
 ]
+ButtonRow: TypeAlias = list[Button]
 
 
 class InlineKeyboard(CamelModel):
-    buttons: list[Button]
+    buttons: list[ButtonRow]
 
 
 class InlineKeyboardAttachment(CamelModel):
