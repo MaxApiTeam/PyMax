@@ -21,4 +21,4 @@ class CommentsInfoUpdate(CamelModel):
     """
 
     post_id: int
-    comments_info: CommentsInfo
+    comments_info: CommentsInfo | None
