@@ -4,7 +4,7 @@ import asyncio
 import base64
 from http import HTTPStatus
 from typing import TYPE_CHECKING
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import quote
 
 import aiohttp
 from pydantic import ValidationError
@@ -40,7 +40,20 @@ logger = get_logger(__name__)
 
 
 class UploadService:
+    """Performs the upload half of sending an attachment.
+
+    Each ``upload_*`` method turns a local file into whatever token the matching
+    ``MSG_SEND`` opcode expects. Videos, files and voices are uploaded in chunks
+    and only complete once the server emits the corresponding processing event,
+    which is what the per-kind waiter futures below are for.
+    """
+
     def __init__(self, app: App) -> None:
+        """Subscribes to upload-completion events and opens the waiter registries.
+
+        Args:
+            app: Runtime the uploads are performed against.
+        """
         self.app = app
         self.video_upload_waiters: dict[int, asyncio.Future[VideoUploadSignal]] = {}
         self.file_upload_waiters: dict[int, asyncio.Future[FileUploadSignal]] = {}
@@ -50,6 +63,25 @@ class UploadService:
         self.app.dispatcher.on_internal(EventType.VOICE_READY)(self.on_voice_attach)
 
     async def upload_photo(self, photo: Photo, profile: bool = False) -> AttachPhotoPayload:
+        """Uploads a single photo and returns the token to attach it with.
+
+        Requests a one-shot upload URL from MAX, POSTs the image to it, and reads
+        the resulting token. That URL carries no photo id, so the token is read
+        from the single entry of the upload result rather than looked up by id --
+        see `_extract_photo_token` for why that is exact rather than a guess.
+
+        Args:
+            photo: Image to upload.
+            profile: Whether the upload sets the account's own avatar.
+
+        Returns:
+            Attachment payload carrying the uploaded photo's token.
+
+        Raises:
+            UploadError: No upload URL was returned, the POST failed, the
+                response could not be parsed, or it did not describe exactly one
+                photo.
+        """
         logger.info("Uploading photo")
         logger.debug("Preparing photo upload payload")
 
@@ -80,19 +112,6 @@ class UploadService:
 
         logger.debug("Photo upload URL received")
 
-        try:
-            parsed_url = urlparse(url)
-            photo_id = str(parse_qs(parsed_url.query)["photoIds"][0])
-        except (KeyError, IndexError) as e:
-            logger.exception("Photo upload URL does not contain photoIds")
-            logger.debug("Invalid photo upload URL=%s", url)
-            raise UploadError("Photo upload URL does not contain photoIds") from e
-        except Exception as e:
-            logger.exception("Failed to parse photo id from upload URL")
-            logger.debug("Invalid photo upload URL=%s", url)
-            raise UploadError("Failed to parse photo id from upload URL") from e
-
-        logger.debug("Photo upload id parsed photo_id=%s", photo_id)
 
         try:
             photo_data = photo.validate_photo()
@@ -165,24 +184,38 @@ class UploadService:
             logger.debug("Invalid photo upload response=%r", result)
             raise UploadError("Invalid photo upload response model") from e
 
-        try:
-            token = model.photos[photo_id].token
-        except KeyError as e:
-            logger.exception(
-                "Photo upload response does not contain token for photo_id=%s",
-                photo_id,
-            )
-            logger.debug("Photo upload model=%r", model)
-            raise UploadError(
-                f"Photo upload response does not contain token for photo_id={photo_id}"
-            ) from e
-        except Exception as e:
-            logger.exception("Failed to extract photo token")
-            logger.debug("Photo upload model=%r", model)
-            raise UploadError("Failed to extract photo token") from e
-
-        logger.debug("Photo upload complete photo_id=%s", photo_id)
+        token = self._extract_photo_token(model)
+        logger.debug("Photo upload complete")
         return AttachPhotoPayload(photo_token=token)
+
+    @staticmethod
+    def _extract_photo_token(model: PhotoUploadResponse) -> str:
+        """Token of the single photo this request uploaded.
+
+        The upload URL no longer carries a ``photoIds`` parameter, so the token
+        is read by position instead of by photo id. That is exact rather than a
+        guess: this endpoint is always requested with ``count=1`` and MAX has
+        never batched a photo upload -- a multi-photo message is several
+        independent ``PHOTO_UPLOAD`` requests whose tokens are then sent together
+        in one ``MSG_SEND`` (see ``_upload_attachments``). The official client
+        behaves the same way.
+
+        A response that doesn't hold exactly one photo means that assumption no
+        longer holds -- there would be no way to tell which entry is ours, and
+        picking one would attach the wrong photo to a message. Fail loudly
+        instead.
+        """
+        photos = model.photos
+        if len(photos) != 1:
+            logger.error(
+                "Photo upload response holds %d photo(s), expected exactly 1: keys=%s",
+                len(photos),
+                sorted(photos),
+            )
+            raise UploadError(
+                f"Photo upload response holds {len(photos)} photo(s), expected 1"
+            )
+        return next(iter(photos.values())).token
 
     async def upload_voice(self, voice: Voice) -> VoiceAttachPayload:
         logger.info("Uploading voice")
