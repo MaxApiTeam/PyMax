@@ -40,7 +40,20 @@ logger = get_logger(__name__)
 
 
 class UploadService:
+    """Performs the upload half of sending an attachment.
+
+    Each ``upload_*`` method turns a local file into whatever token the matching
+    ``MSG_SEND`` opcode expects. Videos, files and voices are uploaded in chunks
+    and only complete once the server emits the corresponding processing event,
+    which is what the per-kind waiter futures below are for.
+    """
+
     def __init__(self, app: App) -> None:
+        """Subscribes to upload-completion events and opens the waiter registries.
+
+        Args:
+            app: Runtime the uploads are performed against.
+        """
         self.app = app
         self.video_upload_waiters: dict[int, asyncio.Future[VideoUploadSignal]] = {}
         self.file_upload_waiters: dict[int, asyncio.Future[FileUploadSignal]] = {}
@@ -50,6 +63,25 @@ class UploadService:
         self.app.dispatcher.on_internal(EventType.VOICE_READY)(self.on_voice_attach)
 
     async def upload_photo(self, photo: Photo, profile: bool = False) -> AttachPhotoPayload:
+        """Uploads a single photo and returns the token to attach it with.
+
+        Requests a one-shot upload URL from MAX, POSTs the image to it, and reads
+        the resulting token. That URL carries no photo id, so the token is read
+        from the single entry of the upload result rather than looked up by id --
+        see `_extract_photo_token` for why that is exact rather than a guess.
+
+        Args:
+            photo: Image to upload.
+            profile: Whether the upload sets the account's own avatar.
+
+        Returns:
+            Attachment payload carrying the uploaded photo's token.
+
+        Raises:
+            UploadError: No upload URL was returned, the POST failed, the
+                response could not be parsed, or it did not describe exactly one
+                photo.
+        """
         logger.info("Uploading photo")
         logger.debug("Preparing photo upload payload")
 

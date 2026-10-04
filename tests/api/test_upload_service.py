@@ -133,6 +133,8 @@ async def test_upload_photo_refuses_an_ambiguous_multi_photo_result(
 async def test_upload_photo_refuses_an_empty_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """An empty result is as unusable as an ambiguous one -- there is no photo to
+    attach -- so it must fail rather than be reported as a success."""
     app = FakeApp([frame({"url": "https://iu.oneme.ru/uploadImage?r=TOKEN1"})])
     service = UploadService(app)
     monkeypatch.setattr(
