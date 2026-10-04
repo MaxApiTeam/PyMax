@@ -4,6 +4,7 @@ import pytest
 
 from pymax.api.uploads.payloads import UploadPayload
 from pymax.api.uploads.service import UploadService
+from pymax.exceptions import UploadError
 from pymax.files import File, Photo, Video, Voice
 from pymax.protocol import Opcode
 from pymax.types import AttachmentType
@@ -61,7 +62,35 @@ def test_upload_payload_uses_regular_video_defaults() -> None:
 async def test_upload_photo_requests_url_posts_file_and_returns_attach_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    app = FakeApp([frame({"url": "https://upload.test/path?photoIds=photo-1"})])
+    """The URL MAX returns today carries no photo id at all -- it is a one-shot
+    `uploadImage?r=<token>` -- and the result is keyed by position ("0"), so the
+    token must not be looked up by a `photoIds` query parameter."""
+    app = FakeApp([frame({"url": "https://iu.oneme.ru/uploadImage?r=TOKEN1"})])
+    service = UploadService(app)
+    monkeypatch.setattr(
+        "pymax.api.uploads.service.aiohttp.ClientSession",
+        FakeHttpSession,
+    )
+    FakeHttpSession.posts = []
+    FakeHttpSession.response = FakeHttpResponse(
+        200,
+        {"photos": {"0": {"token": "uploaded"}}},
+    )
+
+    result = await service.upload_photo(Photo(raw=b"image-bytes", name="image.jpg"))
+
+    assert result.photo_token == "uploaded"
+    assert app.calls[0].opcode == Opcode.PHOTO_UPLOAD
+    assert FakeHttpSession.posts[0]["url"] == "https://iu.oneme.ru/uploadImage?r=TOKEN1"
+
+
+@pytest.mark.asyncio
+async def test_upload_photo_reads_the_token_from_a_result_keyed_by_photo_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keying is not guaranteed to stay "0": anything keyed works as long as the
+    response holds exactly one photo."""
+    app = FakeApp([frame({"url": "https://iu.oneme.ru/uploadImage?r=TOKEN1"})])
     service = UploadService(app)
     monkeypatch.setattr(
         "pymax.api.uploads.service.aiohttp.ClientSession",
@@ -76,8 +105,82 @@ async def test_upload_photo_requests_url_posts_file_and_returns_attach_payload(
     result = await service.upload_photo(Photo(raw=b"image-bytes", name="image.jpg"))
 
     assert result.photo_token == "uploaded"
-    assert app.calls[0].opcode == Opcode.PHOTO_UPLOAD
-    assert FakeHttpSession.posts[0]["url"] == "https://upload.test/path?photoIds=photo-1"
+
+
+@pytest.mark.asyncio
+async def test_upload_photo_refuses_an_ambiguous_multi_photo_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without a photo id in the URL there is no way to tell which entry is
+    ours, so a batched result must fail rather than attach the wrong photo."""
+    app = FakeApp([frame({"url": "https://iu.oneme.ru/uploadImage?r=TOKEN1"})])
+    service = UploadService(app)
+    monkeypatch.setattr(
+        "pymax.api.uploads.service.aiohttp.ClientSession",
+        FakeHttpSession,
+    )
+    FakeHttpSession.posts = []
+    FakeHttpSession.response = FakeHttpResponse(
+        200,
+        {"photos": {"0": {"token": "a"}, "1": {"token": "b"}}},
+    )
+
+    with pytest.raises(UploadError, match="expected 1"):
+        await service.upload_photo(Photo(raw=b"image-bytes", name="image.jpg"))
+
+
+@pytest.mark.asyncio
+async def test_upload_photo_refuses_an_empty_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = FakeApp([frame({"url": "https://iu.oneme.ru/uploadImage?r=TOKEN1"})])
+    service = UploadService(app)
+    monkeypatch.setattr(
+        "pymax.api.uploads.service.aiohttp.ClientSession",
+        FakeHttpSession,
+    )
+    FakeHttpSession.posts = []
+    FakeHttpSession.response = FakeHttpResponse(200, {"photos": {}})
+
+    with pytest.raises(UploadError, match="expected 1"):
+        await service.upload_photo(Photo(raw=b"image-bytes", name="image.jpg"))
+
+
+@pytest.mark.asyncio
+async def test_each_photo_of_an_album_is_uploaded_separately(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A multi-photo message is N independent `count: 1` uploads -- N distinct
+    URLs, N POSTs, N results -- and the tokens are then sent together in one
+    message. The url's photo id was never what tied a result to its photo."""
+    app = FakeApp(
+        [
+            frame({"url": "https://iu.oneme.ru/uploadImage?r=TOKEN1"}),
+            frame({"url": "https://iu.oneme.ru/uploadImage?r=TOKEN2"}),
+        ]
+    )
+    service = UploadService(app)
+    monkeypatch.setattr(
+        "pymax.api.uploads.service.aiohttp.ClientSession",
+        FakeHttpSession,
+    )
+    FakeHttpSession.posts = []
+    FakeHttpSession.response = FakeHttpResponse(200, {"photos": {"0": {"token": "t"}}})
+
+    first = await service.upload_photo(Photo(raw=b"one", name="one.jpg"))
+    FakeHttpSession.response = FakeHttpResponse(200, {"photos": {"0": {"token": "t2"}}})
+    second = await service.upload_photo(Photo(raw=b"two", name="two.jpg"))
+
+    assert (first.photo_token, second.photo_token) == ("t", "t2")
+    assert [call.opcode for call in app.calls] == [Opcode.PHOTO_UPLOAD] * 2
+    assert [post["url"] for post in FakeHttpSession.posts] == [
+        "https://iu.oneme.ru/uploadImage?r=TOKEN1",
+        "https://iu.oneme.ru/uploadImage?r=TOKEN2",
+    ]
+    # One upload per photo, always: that is what makes a single-entry result
+    # unambiguous.
+    for call in app.calls:
+        assert call.payload["count"] == 1
 
 
 @pytest.mark.asyncio
