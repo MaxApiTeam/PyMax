@@ -82,11 +82,11 @@ class UploadService:
 
         try:
             parsed_url = urlparse(url)
-            photo_id = str(parse_qs(parsed_url.query)["photoIds"][0])
+            photo_id = str(parse_qs(parsed_url.query)["photos"][0])  # TODO: enum maybe?
         except (KeyError, IndexError) as e:
-            logger.exception("Photo upload URL does not contain photoIds")
+            logger.exception("Photo upload URL does not contain photos")
             logger.debug("Invalid photo upload URL=%s", url)
-            raise UploadError("Photo upload URL does not contain photoIds") from e
+            raise UploadError("Photo upload URL does not contain photos") from e
         except Exception as e:
             logger.exception("Failed to parse photo id from upload URL")
             logger.debug("Invalid photo upload URL=%s", url)
