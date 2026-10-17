@@ -63,7 +63,6 @@ class Client(BaseClient["Client"]):
         app_version: str = VersionCatalog.RECOMMENDED_APP_VERSION,
         catalog: VersionCatalog | None = None,
     ) -> None:
-
         self.phone: str = phone
         self.extra_config: ExtraConfig = extra_config or ExtraConfig()
         self.session_name: str = session_name

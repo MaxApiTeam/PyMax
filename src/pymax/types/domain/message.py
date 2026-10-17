@@ -139,24 +139,6 @@ class ForwardLink(MessageLink):
     chat_icon_url: str | None = None
 
 
-"""
-            "link": {
-        "type": "FORWARD",
-        "message": {
-          "id": "116641336752745888",
-          "time": 1779805553478,
-          "type": "CHANNEL",
-          "text": "Добро пожаловать на наше шоу!",
-          "attaches": []
-        },
-        "chatId": -75183661482741,
-        "chatName": "Max Bounty Test",
-        "chatLink": "https://max.ru/join/htlT5aTtlpAgcno_hc93lLM44Dxe45HvOEBqx22lKms",
-        "chatAccessType": "PRIVATE"
-      }
-"""
-
-
 class Message(CamelModel):
     """Сообщение Max с методами для действий над ним.
 
