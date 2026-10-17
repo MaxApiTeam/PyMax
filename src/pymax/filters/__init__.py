@@ -4,4 +4,12 @@ from .presets import Command, Forwarded, FromMe, HasAttachment, Reply
 
 F = MagicFilter()
 
-__all__ = ("Command", "Filter", "Forwarded", "FromMe", "HasAttachment", "MagicFilter", "Reply")
+__all__ = (
+    "Command",
+    "Filter",
+    "Forwarded",
+    "FromMe",
+    "HasAttachment",
+    "MagicFilter",
+    "Reply",
+)

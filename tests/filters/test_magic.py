@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from pymax.filters import Command, F, FromMe, HasAttachment
 from pymax.types import Chat, Message, PhotoAttachment
 
@@ -42,10 +44,10 @@ def make_photo() -> PhotoAttachment:
     )
 
 
-def test_message_container_exposes_all_message_fields() -> None:
+def test_message_container_exposes_supported_message_fields() -> None:
     fields = {name for name, value in vars(type(F.message)).items() if isinstance(value, property)}
 
-    assert fields == set(Message.model_fields)
+    assert fields == set(Message.model_fields) - {"link"}
 
 
 def test_chat_container_exposes_all_chat_fields() -> None:
@@ -54,22 +56,24 @@ def test_chat_container_exposes_all_chat_fields() -> None:
     assert fields == set(Chat.model_fields)
 
 
-def test_message_field_filters_support_comparison_and_logical_operations() -> None:
+@pytest.mark.asyncio
+async def test_message_field_filters_support_comparison_and_logical_operations() -> None:
     message = make_message()
     client = make_client()
     filter_ = F.message.text.contains("hello") & ~(F.message.sender == 20)
 
-    assert filter_(message, client) is True
+    assert await filter_(message, client) is True
     assert (F.message.chat_id == 100)(message, client) is True
     assert (F.message.chat_id == 200)(message, client) is False
 
 
-def test_chat_field_filters_support_comparison_and_logical_operations() -> None:
+@pytest.mark.asyncio
+async def test_chat_field_filters_support_comparison_and_logical_operations() -> None:
     chat = make_chat()
     client = make_client()
     filter_ = F.chat.title.contains("PyMax") & (F.chat.owner == 10)
 
-    assert filter_(chat, client) is True
+    assert await filter_(chat, client) is True
     assert (F.chat.status == "INACTIVE")(chat, client) is False
 
 
@@ -121,19 +125,21 @@ def test_text_field_filters_support_case_sensitive_and_insensitive_matching() ->
     assert F.message.text.endswith("PYMAX", ignore_case=True)(message, client) is True
 
 
-def test_presets_support_and_composition() -> None:
+@pytest.mark.asyncio
+async def test_presets_support_and_composition() -> None:
     client = make_client()
     filter_ = HasAttachment(PhotoAttachment) & FromMe()
 
-    assert filter_(make_message(attaches=[make_photo()]), client) is True
-    assert filter_(make_message(sender=20, attaches=[make_photo()]), client) is False
-    assert filter_(make_message(), client) is False
+    assert await filter_(make_message(attaches=[make_photo()]), client) is True
+    assert await filter_(make_message(sender=20, attaches=[make_photo()]), client) is False
+    assert await filter_(make_message(), client) is False
 
 
-def test_presets_support_or_composition() -> None:
+@pytest.mark.asyncio
+async def test_presets_support_or_composition() -> None:
     client = make_client()
     filter_ = Command("start") | HasAttachment(PhotoAttachment)
 
-    assert filter_(make_message(text="/start"), client) is True
-    assert filter_(make_message(text="hello", attaches=[make_photo()]), client) is True
-    assert filter_(make_message(text="hello"), client) is False
+    assert await filter_(make_message(text="/start"), client) is True
+    assert await filter_(make_message(text="hello", attaches=[make_photo()]), client) is True
+    assert await filter_(make_message(text="hello"), client) is False

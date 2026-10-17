@@ -3,18 +3,18 @@ from __future__ import annotations
 import builtins
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from pymax.filters.base import ClientT_contra, Filter, PathResolver
+from pymax.filters.base import ClientT, Filter, PathResolver
 from pymax.filters.refs import FieldRef, NumberFieldRef, TextFieldRef
 
 from .message import MessageContainer
 
 if TYPE_CHECKING:
-    from pymax.base import BaseClient
+    pass
 
 EventT = TypeVar("EventT")
 
 
-class ChatContainer(Filter[EventT, ClientT_contra], PathResolver):
+class ChatContainer(Filter[EventT, ClientT], PathResolver):
     def __init__(
         self,
         expected_type: builtins.type[EventT],
@@ -233,7 +233,7 @@ class ChatContainer(Filter[EventT, ClientT_contra], PathResolver):
             expected_type=self.expected_type,
         )
 
-    def __call__(self, event: Any, client: ClientT_contra) -> bool:
+    def __call__(self, event: Any, client: ClientT) -> bool:
         if not isinstance(event, self.expected_type):
             return False
 

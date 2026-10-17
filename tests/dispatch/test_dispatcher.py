@@ -4,7 +4,7 @@ import pytest
 
 from pymax.dispatch import Dispatcher, Router
 from pymax.dispatch.enums import EventType
-from pymax.filters import F
+from pymax.filters import F, Filter
 from pymax.protocol import Command, Opcode
 from tests.conftest import FakeApp, chat_payload, frame, message_payload
 
@@ -17,13 +17,15 @@ async def test_dispatcher_routes_message_events_through_filters_and_raw_handler(
     dispatcher.bind_client("client")
     seen: list[tuple[str, int | str]] = []
 
-    def is_start(message, _client):
-        return message.text == "/start"
+    class IsStart(Filter):
+        def __call__(self, message, _client):
+            return message.text == "/start"
 
-    def has_chat(message, _client):
-        return message.chat_id == 100
+    class HasChat(Filter):
+        async def __call__(self, message, _client):
+            return message.chat_id == 100
 
-    @router.on_message(is_start, has_chat)
+    @router.on_message(IsStart(), HasChat())
     async def on_message(message, client):
         seen.append((client, message.id))
 

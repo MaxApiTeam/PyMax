@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TypeVar
 
-from .base import MISSING, ClientT_contra, FieldRef
+from .base import MISSING, ClientT, FieldRef
 from .filters import (
     BetweenFilter,
     ContainsFilter,
@@ -17,7 +17,7 @@ from .filters import (
 EventT = TypeVar("EventT")
 
 
-class TextFieldRef(FieldRef[EventT, ClientT_contra]):
+class TextFieldRef(FieldRef[EventT, ClientT]):
     def contains(self, text: str, *, ignore_case: bool = False) -> ContainsFilter:
         return ContainsFilter(self.path, self.expected_type, text, ignore_case)
 
@@ -27,7 +27,7 @@ class TextFieldRef(FieldRef[EventT, ClientT_contra]):
     def endswith(self, text: str, *, ignore_case: bool = False) -> EndsWithFilter:
         return EndsWithFilter(self.path, self.expected_type, text, ignore_case)
 
-    def __call__(self, event: EventT, _: ClientT_contra) -> bool:
+    def __call__(self, event: EventT, _: ClientT) -> bool:
         if not isinstance(event, self.expected_type):
             return False
 
@@ -39,7 +39,7 @@ class TextFieldRef(FieldRef[EventT, ClientT_contra]):
         return bool(value)
 
 
-class NumberFieldRef(FieldRef[EventT, ClientT_contra]):
+class NumberFieldRef(FieldRef[EventT, ClientT]):
     def __lt__(self, value: float) -> LessThanFilter:
         return LessThanFilter(self.path, self.expected_type, value)
 

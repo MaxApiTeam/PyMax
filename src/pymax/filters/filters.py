@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
-from .base import ClientT_contra, Filter, PathResolver
+from .base import ClientT, Filter, PathResolver
 
 if TYPE_CHECKING:
-    from pymax.base import BaseClient
+    pass
 
 EventT = TypeVar("EventT")
 
 
-class ContainsFilter(Filter[EventT, ClientT_contra], PathResolver):
+class ContainsFilter(Filter[EventT, ClientT], PathResolver):
     def __init__(
         self,
         path: list[str],
@@ -23,7 +23,7 @@ class ContainsFilter(Filter[EventT, ClientT_contra], PathResolver):
         self.text = text
         self.ignore_case = ignore_case
 
-    def __call__(self, event: EventT, _: ClientT_contra) -> bool:
+    def __call__(self, event: EventT, _: ClientT) -> bool:
         if not isinstance(event, self.expected_type):
             return False
 
@@ -38,7 +38,7 @@ class ContainsFilter(Filter[EventT, ClientT_contra], PathResolver):
         return self.text in value
 
 
-class StartsWithFilter(Filter[EventT, ClientT_contra], PathResolver):
+class StartsWithFilter(Filter[EventT, ClientT], PathResolver):
     def __init__(
         self,
         path: list[str],
@@ -51,7 +51,7 @@ class StartsWithFilter(Filter[EventT, ClientT_contra], PathResolver):
         self.text = text
         self.ignore_case = ignore_case
 
-    def __call__(self, event: EventT, _: ClientT_contra) -> bool:
+    def __call__(self, event: EventT, _: ClientT) -> bool:
         if not isinstance(event, self.expected_type):
             return False
 
@@ -66,7 +66,7 @@ class StartsWithFilter(Filter[EventT, ClientT_contra], PathResolver):
         return value.startswith(self.text)
 
 
-class EndsWithFilter(Filter[EventT, ClientT_contra], PathResolver):
+class EndsWithFilter(Filter[EventT, ClientT], PathResolver):
     def __init__(
         self,
         path: list[str],
@@ -79,7 +79,7 @@ class EndsWithFilter(Filter[EventT, ClientT_contra], PathResolver):
         self.text = text
         self.ignore_case = ignore_case
 
-    def __call__(self, event: EventT, _: ClientT_contra) -> bool:
+    def __call__(self, event: EventT, _: ClientT) -> bool:
         if not isinstance(event, self.expected_type):
             return False
 
@@ -94,7 +94,7 @@ class EndsWithFilter(Filter[EventT, ClientT_contra], PathResolver):
         return value.endswith(self.text)
 
 
-class LessThanFilter(Filter[EventT, ClientT_contra], PathResolver):
+class LessThanFilter(Filter[EventT, ClientT], PathResolver):
     def __init__(
         self,
         path: list[str],
@@ -105,7 +105,7 @@ class LessThanFilter(Filter[EventT, ClientT_contra], PathResolver):
         self.expected_type = expected_type
         self.expected = expected
 
-    def __call__(self, event: EventT, _: ClientT_contra) -> bool:
+    def __call__(self, event: EventT, _: ClientT) -> bool:
         if not isinstance(event, self.expected_type):
             return False
 
@@ -117,7 +117,7 @@ class LessThanFilter(Filter[EventT, ClientT_contra], PathResolver):
         return value < self.expected
 
 
-class LessThanOrEqualFilter(Filter[EventT, ClientT_contra], PathResolver):
+class LessThanOrEqualFilter(Filter[EventT, ClientT], PathResolver):
     def __init__(
         self,
         path: list[str],
@@ -128,7 +128,7 @@ class LessThanOrEqualFilter(Filter[EventT, ClientT_contra], PathResolver):
         self.expected_type = expected_type
         self.expected = expected
 
-    def __call__(self, event: EventT, _: ClientT_contra) -> bool:
+    def __call__(self, event: EventT, _: ClientT) -> bool:
         if not isinstance(event, self.expected_type):
             return False
 
@@ -140,7 +140,7 @@ class LessThanOrEqualFilter(Filter[EventT, ClientT_contra], PathResolver):
         return value <= self.expected
 
 
-class GreaterThanFilter(Filter[EventT, ClientT_contra], PathResolver):
+class GreaterThanFilter(Filter[EventT, ClientT], PathResolver):
     def __init__(
         self,
         path: list[str],
@@ -151,7 +151,7 @@ class GreaterThanFilter(Filter[EventT, ClientT_contra], PathResolver):
         self.expected_type = expected_type
         self.expected = expected
 
-    def __call__(self, event: EventT, _: ClientT_contra) -> bool:
+    def __call__(self, event: EventT, _: ClientT) -> bool:
         if not isinstance(event, self.expected_type):
             return False
 
@@ -163,7 +163,7 @@ class GreaterThanFilter(Filter[EventT, ClientT_contra], PathResolver):
         return value > self.expected
 
 
-class GreaterThanOrEqualFilter(Filter[EventT, ClientT_contra], PathResolver):
+class GreaterThanOrEqualFilter(Filter[EventT, ClientT], PathResolver):
     def __init__(
         self,
         path: list[str],
@@ -174,7 +174,7 @@ class GreaterThanOrEqualFilter(Filter[EventT, ClientT_contra], PathResolver):
         self.expected_type = expected_type
         self.expected = expected
 
-    def __call__(self, event: EventT, _: ClientT_contra) -> bool:
+    def __call__(self, event: EventT, _: ClientT) -> bool:
         if not isinstance(event, self.expected_type):
             return False
 
@@ -186,7 +186,7 @@ class GreaterThanOrEqualFilter(Filter[EventT, ClientT_contra], PathResolver):
         return value >= self.expected
 
 
-class BetweenFilter(Filter[EventT, ClientT_contra], PathResolver):
+class BetweenFilter(Filter[EventT, ClientT], PathResolver):
     def __init__(
         self,
         path: list[str],
@@ -199,7 +199,7 @@ class BetweenFilter(Filter[EventT, ClientT_contra], PathResolver):
         self.minimum = minimum
         self.maximum = maximum
 
-    def __call__(self, event: EventT, _: ClientT_contra) -> bool:
+    def __call__(self, event: EventT, _: ClientT) -> bool:
         if not isinstance(event, self.expected_type):
             return False
 
