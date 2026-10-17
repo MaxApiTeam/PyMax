@@ -44,6 +44,7 @@ EVENT_MAP: dict[Opcode, Resolver] = {
     Opcode.NOTIF_MARK: resolve_message_read,
     Opcode.NOTIF_PRESENCE: resolve_presence,
     Opcode.NOTIF_MSG_REACTIONS_CHANGED: resolve_reaction_update,
+    Opcode.NOTIF_MSG_YOU_REACTED: resolve_reaction_update,
 }
 
 
