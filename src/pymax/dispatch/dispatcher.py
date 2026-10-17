@@ -235,21 +235,22 @@ class Dispatcher(Generic[ClientT]):
         self.startup_tasks = []
 
     async def dispatch(self, frame: InboundFrame) -> None:
-        event_type = self.resolver.resolve(frame)
+        try:
+            event_type = self.resolver.resolve(frame)
 
-        if event_type is not None:
-            logger.debug("dispatching event type=%s", event_type)
-            event = self.mapper.map(event_type, frame)
-            await self._dispatch_to_router(self.internal_router, event_type, event)
-            await self._dispatch_to_router(self.root_router, event_type, event)
-        else:
-            logger.debug(
-                "dispatching raw event only opcode=%s cmd=%s",
-                frame.opcode,
-                frame.cmd,
-            )
-
-        await self._dispatch_to_router(self.root_router, EventType.RAW, frame)
+            if event_type is not None:
+                logger.debug("dispatching event type=%s", event_type)
+                event = self.mapper.map(event_type, frame)
+                await self._dispatch_to_router(self.internal_router, event_type, event)
+                await self._dispatch_to_router(self.root_router, event_type, event)
+            else:
+                logger.debug(
+                    "dispatching raw event only opcode=%s cmd=%s",
+                    frame.opcode,
+                    frame.cmd,
+                )
+        finally:
+            await self._dispatch_to_router(self.root_router, EventType.RAW, frame)
 
     async def _dispatch_to_router(
         self,
