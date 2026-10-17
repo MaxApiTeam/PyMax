@@ -612,7 +612,7 @@ class MessageService:
 
         return None
 
-    async def read_message(self, message_id: int | str, chat_id: int) -> ReadState:
+    async def read_message(self, message_id: int, chat_id: int) -> ReadState:
         logger.info(
             "marking message as read chat_id=%s message_id=%s",
             chat_id,
