@@ -189,13 +189,18 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
                 self.extra_config.reconnect_delay,
             )
             raise
+        except Exception:
+            await self.close()
+            raise
 
     async def start(self: ClientT) -> None:  # noqa: PYI019
         """Запускает клиента и слушает события до закрытия соединения.
 
         При сетевых ошибках повторяет подключение, если ``reconnect=True``.
         Отозванный login token автоматически сбрасывается при ``relogin=True``.
+        Если новый token тоже отклонен, ошибка передается вызывающему коду.
         """
+        relogin_attempted = False
         while True:
             try:
                 await self._ensure_runtime()
@@ -204,19 +209,24 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
                     await self.close()
                     return
 
+                relogin_attempted = False
                 await self._app.dispatcher.emit_start(self)
                 await self._connection.wait_closed()
             except asyncio.CancelledError:
                 await self.close()
                 raise
             except ApiError as e:
-                if not self._app._is_invalid_login_token_error(e):
+                if (
+                    not self._app._is_invalid_login_token_error(e)
+                    or not self.extra_config.relogin
+                    or relogin_attempted
+                ):
                     await self.close()
                     raise
 
                 logger.warning("login token was revoked; starting authentication again")
-                if self.extra_config.relogin:
-                    await self.relogin(start=False)
+                relogin_attempted = True
+                await self.relogin(start=False)
             except (
                 ConnectionError,
                 EOFError,
