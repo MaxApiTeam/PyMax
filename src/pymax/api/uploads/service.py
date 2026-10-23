@@ -82,11 +82,9 @@ class UploadService:
 
         try:
             parsed_url = urlparse(url)
-            photo_id = str(parse_qs(parsed_url.query)["photos"][0])  # TODO: enum maybe?
-        except (KeyError, IndexError) as e:
-            logger.exception("Photo upload URL does not contain photos")
-            logger.debug("Invalid photo upload URL=%s", url)
-            raise UploadError("Photo upload URL does not contain photos") from e
+            query = parse_qs(parsed_url.query)
+            photo_ids = query.get("photos") or query.get("photoIds")
+            photo_id = str(photo_ids[0]) if photo_ids else None
         except Exception as e:
             logger.exception("Failed to parse photo id from upload URL")
             logger.debug("Invalid photo upload URL=%s", url)
@@ -164,6 +162,12 @@ class UploadService:
             logger.exception("Invalid photo upload response model")
             logger.debug("Invalid photo upload response=%r", result)
             raise UploadError("Invalid photo upload response model") from e
+
+        if photo_id is None:
+            if len(model.photos) != 1:
+                logger.error("Expected one photo in upload response without a photo id")
+                raise UploadError("Expected one photo in upload response without a photo id")
+            photo_id = next(iter(model.photos))
 
         try:
             token = model.photos[photo_id].token
