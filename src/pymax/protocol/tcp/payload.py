@@ -128,8 +128,6 @@ class TcpPayloadDecoder:
             except ValueError:
                 logger.debug("tcp Zstd payload decompression failed", exc_info=True)
                 raise
-        elif flags > 0x7F:
-            raise ValueError(f"invalid TCP compression factor: {flags}")
         elif flags > 0:
             if self.compression is None:
                 raise ValueError("LZ4-compressed TCP payload without a decoder")
