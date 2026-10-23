@@ -128,6 +128,40 @@ Root router
 Все фильтры должны вернуть ``True``. Если хотя бы один фильтр вернул ``False``,
 handler не вызывается.
 
+Middleware
+----------
+
+``client.add_middleware()`` добавляет middleware в общую цепочку обработчиков
+клиента, включая подключенные роутеры. Регистрировать middleware можно до
+``connect()`` или ``start()``; регистрация сохраняется при reconnect.
+
+.. code-block:: python
+
+   from typing import Any
+
+   from pymax import Client
+   from pymax.dispatch import DispatchEvent, MiddlewareNext
+
+   client = Client(phone="+79990000000")
+
+
+   async def log_event(
+       client: Client,
+       event: DispatchEvent,
+       call_next: MiddlewareNext,
+   ) -> Any:
+       print(type(event).__name__)
+       return await call_next(event)
+
+
+   client.add_middleware(log_event)
+
+Middleware выполняются после фильтров, перед подходящим handler-ом. Первое
+зарегистрированное middleware входит первым, а выходит последним. Чтобы
+продолжить цепочку, вызовите ``await call_next(event)``. Внутренние обработчики
+готовности загрузок выполняются отдельно и через пользовательскую цепочку
+не проходят.
+
 Почему handler принимает event и client
 ---------------------------------------
 

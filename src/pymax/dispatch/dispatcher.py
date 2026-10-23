@@ -18,7 +18,8 @@ from pymax.types.events import (
 )
 
 from .enums import EventType
-from .mapping import EventMapper, EventResolver
+from .mapping import DispatchEvent, EventMapper, EventResolver
+from .middleware import Middleware, MiddlewareNext
 from .router import (
     DisconnectCallback,
     DisconnectDecorator,
@@ -51,6 +52,7 @@ EventT = TypeVar("EventT")
 class Dispatcher(Generic[ClientT]):
     def __init__(self, app: App, root_router: Router[ClientT] | None = None) -> None:
         self.root_router: Router[ClientT] = root_router or Router()
+        self.middlewares: list[Middleware[ClientT]] = self.root_router.middlewares
         self.internal_router: Router[ClientT] = Router()
         self.resolver = EventResolver()
         self.mapper = EventMapper(app)
@@ -67,6 +69,12 @@ class Dispatcher(Generic[ClientT]):
             len(router.handlers),
             len(router.children),
         )
+
+    def add_middleware(self, middleware: Middleware) -> None:
+        if middleware not in self.middlewares:  # TODO: make better comparison or just remove it
+            self.middlewares.append(middleware)
+        else:
+            logger.warning(f"Middleware {middleware.__class__.__name__} is already registered")
 
     def on_internal(
         self,
@@ -241,7 +249,9 @@ class Dispatcher(Generic[ClientT]):
             if event_type is not None:
                 logger.debug("dispatching event type=%s", event_type)
                 event = self.mapper.map(event_type, frame)
-                await self._dispatch_to_router(self.internal_router, event_type, event)
+                await self._dispatch_to_router(
+                    self.internal_router, event_type, event, apply_middleware=False
+                )
                 await self._dispatch_to_router(self.root_router, event_type, event)
             else:
                 logger.debug(
@@ -256,7 +266,9 @@ class Dispatcher(Generic[ClientT]):
         self,
         router: Router[ClientT],
         event_type: EventType,
-        event: Any,
+        event: DispatchEvent,
+        *,
+        apply_middleware: bool = True,
     ) -> None:
         for entry in router.handlers.get(event_type, []):
             try:
@@ -266,14 +278,54 @@ class Dispatcher(Generic[ClientT]):
                         event_type,
                         _callback_name(entry.callback),
                     )
-                    await self._call(entry.callback, event)
+                    if apply_middleware:
+                        await self._call_with_middleware(entry.callback, event)
+                    else:
+                        await self._call(entry.callback, event)
             except Exception as e:  # noqa: PERF203
                 handled = await self.emit_error(e, event_type, event, router, entry)
                 if not handled:
                     raise
 
         for child in router.children:
-            await self._dispatch_to_router(child, event_type, event)
+            await self._dispatch_to_router(
+                child,
+                event_type,
+                event,
+                apply_middleware=apply_middleware,
+            )
+
+    async def _call_with_middleware(
+        self,
+        callback: HandlerCallback[DispatchEvent, ClientT],
+        event: DispatchEvent,
+    ) -> Any:
+
+        async def call_handler(event: DispatchEvent) -> Any:
+            return await self._call(callback, event)
+
+        call_next: MiddlewareNext = call_handler
+
+        for middleware in reversed(self.middlewares):
+            next_ = call_next
+
+            async def wrapped(
+                event: DispatchEvent,
+                middleware: Middleware[ClientT] = middleware,
+                next_: MiddlewareNext = next_,
+            ) -> Any:
+                if self.client is None:
+                    raise RuntimeError("client is not bound")
+
+                return await middleware(
+                    self.client,
+                    event,
+                    next_,
+                )
+
+            call_next = wrapped
+
+        return await call_next(event)
 
     async def _matches(
         self,

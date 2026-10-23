@@ -14,6 +14,7 @@ from .enums import EventType
 if TYPE_CHECKING:
     from pymax.base import BaseClient
     from pymax.client import Client
+    from pymax.dispatch.middleware import Middleware
     from pymax.protocol import InboundFrame
     from pymax.types import Chat
     from pymax.types.domain import Message
@@ -133,6 +134,7 @@ class Router(Generic[ClientT]):
         ] = defaultdict(list)
 
         self.children: list[Router[ClientT]] = []
+        self.middlewares: list[Middleware[ClientT]] = []
         self.on_start_handlers: list[StartCallback[ClientT]] = []
         self.error_handlers: list[ErrorEntry[ClientT]] = []
         self.disconnect_handlers: list[DisconnectCallback] = []

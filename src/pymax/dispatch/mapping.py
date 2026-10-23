@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeAlias
 
 from pymax.api.binding import bind_api_model
 from pymax.protocol import InboundFrame, Opcode
@@ -33,6 +33,19 @@ if TYPE_CHECKING:
     from pymax.app import App
 
 Resolver = Callable[[InboundFrame], EventType | None]
+DispatchEvent: TypeAlias = (
+    Message
+    | Chat
+    | MessageDeleteEvent
+    | MessageReadEvent
+    | TypingEvent
+    | PresenceEvent
+    | ReactionUpdateEvent
+    | VideoUploadSignal
+    | FileUploadSignal
+    | AudioUploadSignal
+    | InboundFrame
+)
 
 EVENT_MAP: dict[Opcode, Resolver] = {
     Opcode.NOTIF_MESSAGE: resolve_message,

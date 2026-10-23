@@ -4,7 +4,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
-from pymax.dispatch import ErrorScope, Router
+from pymax.dispatch import ErrorScope, Middleware, Router
 from pymax.dispatch.router import DisconnectDecorator, ErrorDecorator
 from pymax.exceptions import ApiError
 from pymax.filters import Filter
@@ -352,6 +352,17 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
     def include_router(self, router: Router[ClientT]) -> None:
         """Подключает дочерний router к root router клиента."""
         self._router.include_router(router)
+
+    def add_middleware(self, middleware: Middleware[ClientT]) -> None:
+        """Добавляет middleware в цепочку обработчиков клиента.
+
+        Middleware вызываются в порядке регистрации после проверки фильтров.
+        Регистрация доступна до запуска клиента и сохраняется при reconnect.
+        """
+        if middleware not in self._router.middlewares:
+            self._router.middlewares.append(middleware)
+        else:
+            logger.warning(f"Middleware {middleware.__class__.__name__} is already registered")
 
     async def relogin(self: ClientT, drop_config_token: bool = True, start: bool = True) -> None:  # noqa: PYI019
         """Удаляет текущую локальную сессию и запускает авторизацию заново.
