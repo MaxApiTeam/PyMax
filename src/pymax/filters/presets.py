@@ -31,9 +31,13 @@ class Command(Filter[Message, "BaseClient"]):
         if not message.text:
             return False
 
-        for prefix in self.prefixes:
-            dirty_command = message.text.split(maxsplit=1)[0]
+        parts = message.text.split(maxsplit=1)
+        if not parts:
+            return False
 
+        dirty_command = parts[0]
+
+        for prefix in self.prefixes:
             if message.text.startswith(prefix) and dirty_command[len(prefix) :] == self.command:
                 return True
 
