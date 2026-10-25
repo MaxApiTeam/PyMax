@@ -4,6 +4,7 @@ import pytest
 
 from pymax.dispatch import Dispatcher, Router
 from pymax.dispatch.enums import EventType
+from pymax.filters import F, Filter
 from pymax.protocol import Command, Opcode
 from tests.conftest import FakeApp, chat_payload, frame, message_payload
 
@@ -16,13 +17,15 @@ async def test_dispatcher_routes_message_events_through_filters_and_raw_handler(
     dispatcher.bind_client("client")
     seen: list[tuple[str, int | str]] = []
 
-    def is_start(message):
-        return message.text == "/start"
+    class IsStart(Filter):
+        def __call__(self, message, _client):
+            return message.text == "/start"
 
-    async def has_chat(message):
-        return message.chat_id == 100
+    class HasChat(Filter):
+        async def __call__(self, message, _client):
+            return message.chat_id == 100
 
-    @router.on_message(is_start, has_chat)
+    @router.on_message(IsStart(), HasChat())
     async def on_message(message, client):
         seen.append((client, message.id))
 
@@ -42,6 +45,29 @@ async def test_dispatcher_routes_message_events_through_filters_and_raw_handler(
         ("client", 1),
         ("client", f"raw:{int(Opcode.NOTIF_MESSAGE)}"),
     ]
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_evaluates_all_magic_filters() -> None:
+    app = FakeApp()
+    router: Router[str] = Router()
+    dispatcher: Dispatcher[str] = Dispatcher(app, router)
+    dispatcher.bind_client("client")
+    seen: list[int] = []
+
+    @router.on_message(F.message.text.contains("start"), F.message.chat_id == 200)
+    async def on_message(message, _client):
+        seen.append(message.id)
+
+    await dispatcher.dispatch(
+        frame(
+            {"chatId": 100, "message": message_payload(1, 100, "/start")},
+            opcode=Opcode.NOTIF_MESSAGE,
+            cmd=Command.REQUEST,
+        )
+    )
+
+    assert seen == []
 
 
 @pytest.mark.asyncio
@@ -193,7 +219,7 @@ async def test_dispatcher_maps_reaction_update_event() -> None:
     router: Router[str] = Router()
     dispatcher: Dispatcher[str] = Dispatcher(app, router)
     dispatcher.bind_client("client")
-    seen: list[tuple[str, int, int, int, str]] = []
+    seen: list[tuple[int, int, int, int, str]] = []
 
     @router.on_reaction_update()
     async def on_reaction_update(event, _client):
@@ -220,7 +246,7 @@ async def test_dispatcher_maps_reaction_update_event() -> None:
         )
     )
 
-    assert seen == [("116739131144745294", 239067070, 1, 1, "👍")]
+    assert seen == [(116739131144745294, 239067070, 1, 1, "👍")]
 
 
 @pytest.mark.asyncio

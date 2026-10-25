@@ -21,7 +21,7 @@ class VersionCatalog:
         remote: Загружать ли удаленные версии при :meth:`load`.
     """
 
-    RECOMMENDED_APP_VERSION: str = "26.25.0"
+    RECOMMENDED_APP_VERSION: str = "26.37.1"
     DEFAULT_REMOTE_URL: str = "https://hashes.pymax.org/versions.json"
 
     def __init__(self, remote: bool = False) -> None:

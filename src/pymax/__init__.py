@@ -1,4 +1,4 @@
-__version__ = "2.4.1"
+__version__ = "2.5.0"
 
 
 from .api.self import PrivacyAccess, PrivacySettingsUpdate
@@ -30,6 +30,8 @@ from .types import (
     PresenceEvent,
     Profile,
     ReactionUpdateEvent,
+    Story,
+    StoryPreview,
     TypingEvent,
     User,
 )
@@ -65,6 +67,8 @@ __all__ = (
     "Router",
     "SmsAuthFlow",
     "SmsCodeProvider",
+    "Story",
+    "StoryPreview",
     "SyncOverrides",
     "SyncState",
     "TypingEvent",

@@ -204,12 +204,8 @@ Reply и forward во входящем сообщении
        elif message.text == "/delete":
            await message.delete(for_me=False)
 
-.. note::
-
-   У низкоуровневого ``client.read_message(...)`` есть особенность Max:
-   для отметки прочтения TCP-клиент ожидает ``message_id`` как ``int``, а
-   WebSocket-клиент - как ``str``. Если вызываете метод напрямую, выбирайте
-   тип по клиенту.
+``client.read_message(message_id, chat_id)`` принимает оба ID как ``int``
+для ``Client`` и ``WebClient``.
 
 Методы ``add_reaction()``, ``get_reactions()`` и ``remove_reaction()``
 принимают ID сообщений только как ``int``. При этом ``get_reactions()``
@@ -261,13 +257,110 @@ Reply и forward во входящем сообщении
 сообщения; для отложенных сообщений передайте ``ItemType.DELAYED`` из
 ``pymax.api.messages.enums``.
 
+Комментарии к постам каналов
+----------------------------
+
+Для комментария нужны два разных ID: ``chat_id`` канала и ``post_id`` поста
+в этом канале. ID самого комментария передается как ``message_id``.
+
+.. code-block:: python
+
+   comment = await client.send_comment(
+       chat_id=-123456,
+       post_id=987654,
+       text="Комментарий к посту",
+   )
+   await client.send_comment(
+       chat_id=-123456,
+       post_id=987654,
+       reply_to=comment.id,
+       text="Ответ на комментарий",
+   )
+   comments = await client.fetch_comments(
+       chat_id=-123456,
+       post_id=987654,
+       backward=30,
+   )
+
+Для получения конкретных комментариев доступны ``get_comment()`` и
+``get_comments()``. Редактирование, удаление и реакции также принимают
+контекст поста:
+
+.. code-block:: python
+
+   await client.edit_comment(
+       chat_id=-123456,
+       post_id=987654,
+       message_id=comment.id,
+       text="Обновленный комментарий",
+   )
+   await client.add_comment_reaction(
+       chat_id=-123456,
+       post_id=987654,
+       message_id=comment.id,
+       reaction="👍",
+   )
+   await client.delete_comment(
+       chat_id=-123456,
+       post_id=987654,
+       message_ids=[comment.id],
+   )
+
+``subscribe_comments(chat_id, post_id)`` подписывает клиента на события ветки.
+Для отмены передайте ``subscribe=False``. Счетчики комментариев можно запросить
+через ``get_comments_info(chat_id, post_ids)``; ``delete_user_comments()``
+удаляет комментарии указанного автора в ветке поста.
+
+Если у ``Message`` заполнены ``chat_id`` и ``post_id``, методы ``answer()``,
+``reply()``, ``edit()``, ``delete()``, ``react()`` и ``unreact()`` используют
+контекст комментария. Отправка и редактирование через эти методы сохраняют
+контекст в возвращенном ``Message``. Если ``post_id`` не пришел в объекте,
+используйте явные методы клиента с известным ID поста.
+
+Отложенная отправка комментариев не поддерживается: ``send_comment()`` не
+принимает ``send_at``, а ``Message.answer()`` и ``Message.reply()`` с
+``post_id`` и ненулевым ``send_at`` вызывают ``ValueError``.
+
+Inline-кнопки ботов
+-------------------
+
+``InlineKeyboardAttachment.keyboard.buttons`` — список строк кнопок.
+``callback_id`` находится во вложении клавиатуры, а тип и ``payload`` —
+в конкретной кнопке. Для callback-кнопки можно передать их в
+``client.send_callback()``:
+
+.. code-block:: python
+
+   from pymax import Client, Message
+   from pymax.types import ButtonType, InlineKeyboardAttachment
+
+
+   async def press_first_callback(message: Message, client: Client) -> None:
+       for attach in message.attaches:
+           if not isinstance(attach, InlineKeyboardAttachment):
+               continue
+
+           for row in attach.keyboard.buttons:
+               for button in row:
+                   if button.type == ButtonType.CALLBACK:
+                       result = await client.send_callback(
+                           callback_id=attach.callback_id,
+                           type=button.type,
+                           payload=button.payload,
+                       )
+                       print(result.success)
+                       return
+
+Результат — :doc:`types/callback_response`. Поля ``message`` и ``chat``
+могут отсутствовать; если Max их вернул, у них доступны методы действий.
+
 Почему поля бывают None
 -----------------------
 
 Max присылает разные формы событий. Некоторые payload-ы содержат полный объект
 сообщения, а некоторые - только часть данных. Поэтому ``Message.chat_id``,
-``sender``, ``attaches``, ``reaction_info``, ``status`` и другие поля могут
-быть пустыми.
+``sender``, ``reaction_info``, ``status`` и другие поля могут быть ``None``.
+Отсутствующие вложения представлены пустым списком ``attaches``.
 
 Практическое правило: перед действиями, которым нужен чат, проверяйте
 ``message.chat_id``.

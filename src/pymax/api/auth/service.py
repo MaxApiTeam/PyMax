@@ -97,6 +97,7 @@ class AuthService:
             "sms code request accepted payload_keys=%s",
             payload_keys(response),
         )
+
         return require_payload_model(response, StartAuthResponse)
 
     async def send_code(self, token: str, verify_code: str) -> CheckCodeResponse:

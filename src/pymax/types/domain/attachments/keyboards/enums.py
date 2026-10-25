@@ -1,0 +1,12 @@
+from enum import Enum
+
+
+class ButtonType(str, Enum):
+    CALLBACK = "CALLBACK"
+    LINK = "LINK"
+    CHAT = "CHAT"
+    REQUEST_GEO_LOCATION = "REQUEST_GEO_LOCATION"
+    REQUEST_CONTACT = "REQUEST_CONTACT"
+    OPEN_APP = "OPEN_APP"
+    MESSAGE = "MESSAGE"
+    CLIPBOARD = "CLIPBOARD"

@@ -4,17 +4,28 @@ from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Generic, TypeAlias, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Concatenate,
+    Generic,
+    ParamSpec,
+    Protocol,
+    TypeAlias,
+    TypeVar,
+)
 
+from pymax.filters import Filter
 from pymax.types import MessageDeleteEvent
 
 from .enums import EventType
 
 if TYPE_CHECKING:
-    from pymax import Client
     from pymax.base import BaseClient
+    from pymax.client import Client
+    from pymax.dispatch.middleware import Middleware
     from pymax.protocol import InboundFrame
-    from pymax.types import Chat
+    from pymax.types import Chat, StoryPreview
     from pymax.types.domain import Message
     from pymax.types.events import (
         MessageReadEvent,
@@ -33,19 +44,33 @@ class ErrorScope(str, Enum):
 
 _EventT = TypeVar("_EventT")
 ClientT = TypeVar("ClientT", bound="BaseClient")
+_P = ParamSpec("_P")
 
 HandlerCallback: TypeAlias = Callable[
     [_EventT, ClientT],
     Awaitable[Any] | Any,
 ]
-HandlerDecorator: TypeAlias = Callable[
-    [HandlerCallback[_EventT, ClientT]],
-    HandlerCallback[_EventT, ClientT],
-]
-FilterCallback: TypeAlias = Callable[
-    [_EventT],
-    Awaitable[bool] | bool,
-]
+# HandlerDecorator: TypeAlias = Callable[
+#     [HandlerCallback[_EventT, ClientT]],
+#     HandlerCallback[_EventT, ClientT],
+# ]
+
+HandlerResult: TypeAlias = Awaitable[Any] | Any
+
+
+class HandlerDecorator(Protocol, Generic[_EventT, ClientT]):
+    def __call__(
+        self,
+        handler: Callable[
+            Concatenate[_EventT, ClientT, _P],
+            HandlerResult,
+        ],
+    ) -> Callable[
+        Concatenate[_EventT, ClientT, _P],
+        HandlerResult,
+    ]: ...
+
+
 StartCallback: TypeAlias = Callable[
     [ClientT],
     Awaitable[Any] | Any,
@@ -91,7 +116,7 @@ DisconnectDecorator: TypeAlias = Callable[
 @dataclass(slots=True)
 class HandlerEntry(Generic[_EventT, ClientT]):
     callback: HandlerCallback[_EventT, ClientT]
-    filters: tuple[FilterCallback[_EventT], ...] = ()
+    filters: tuple[Filter, ...] = ()
 
 
 @dataclass(slots=True)
@@ -107,20 +132,20 @@ class Router(Generic[ClientT]):
     """Контейнер обработчиков событий PyMax.
 
     Роутер хранит обработчики и фильтры. Когда приходит событие, dispatcher
-    проходит по root router и его дочерним роутерам, проверяет фильтры и
-    вызывает подходящие callbacks как ``handler(event, client)``.
+    проверяет обработчики в порядке регистрации и вызывает первый подходящий
+    в каждом роутере, затем обходит его дочерние роутеры. Первые два аргумента
+    обработчика — ``event`` и ``client``; дополнительные обязательные параметры
+    разрешаются по аннотациям типов через DI.
 
     Example:
         .. code-block:: python
 
            from pymax import Client, Message, Router
+           from pymax.filters import Command
 
            router = Router[Client]()
 
-           def is_start(message: Message) -> bool:
-               return message.text == "/start"
-
-           @router.on_message(is_start)
+           @router.on_message(Command("start"))
            async def start(message: Message, client: Client) -> None:
                await message.answer("Привет")
 
@@ -135,6 +160,7 @@ class Router(Generic[ClientT]):
         ] = defaultdict(list)
 
         self.children: list[Router[ClientT]] = []
+        self.middlewares: list[Middleware[ClientT]] = []
         self.on_start_handlers: list[StartCallback[ClientT]] = []
         self.error_handlers: list[ErrorEntry[ClientT]] = []
         self.disconnect_handlers: list[DisconnectCallback] = []
@@ -147,6 +173,8 @@ class Router(Generic[ClientT]):
 
         ``GLOBAL``-handler видит ошибки всего дерева подключенных router-ов.
         ``LOCAL``-handler видит только ошибки своего router-а.
+        Callback получает ``handler(exception, context)``. При обработке
+        событий сюда передаются ошибки фильтров, middleware и handler-ов.
         """
         scope = ErrorScope(scope)
 
@@ -173,13 +201,15 @@ class Router(Generic[ClientT]):
         self,
         event: EventType,
         /,
-        *filters: FilterCallback[_EventT],
+        *filters: Filter[_EventT, ClientT],
     ) -> HandlerDecorator[_EventT, ClientT]:
         """Регистрирует обработчик события по ``EventType``.
 
         Args:
             event: Тип события.
-            *filters: Фильтры, которые получают событие и возвращают bool.
+            *filters: Экземпляры ``Filter``, вызываемые как
+                ``filter(event, client)``. Все фильтры должны вернуть ``True``;
+                async-результаты ожидаются автоматически.
 
         Returns:
             Декоратор для ``handler(event, client)``.
@@ -187,7 +217,7 @@ class Router(Generic[ClientT]):
         Example:
             .. code-block:: python
 
-               from pymax import Client
+               from pymax import Client, EventType
                from pymax.protocol import InboundFrame
 
                @router.on(EventType.RAW)
@@ -196,8 +226,14 @@ class Router(Generic[ClientT]):
         """
 
         def decorator(
-            handler: HandlerCallback[_EventT, ClientT],
-        ) -> HandlerCallback[_EventT, ClientT]:
+            handler: Callable[
+                Concatenate[_EventT, ClientT, _P],
+                HandlerResult,
+            ],
+        ) -> Callable[
+            Concatenate[_EventT, ClientT, _P],
+            HandlerResult,
+        ]:
             self.handlers[event].append(
                 HandlerEntry(
                     callback=handler,
@@ -234,7 +270,7 @@ class Router(Generic[ClientT]):
 
     def on_message(
         self,
-        *filters: FilterCallback[Message],
+        *filters: Filter[Message, ClientT],
     ) -> HandlerDecorator[Message, ClientT]:
         """Регистрирует обработчик новых сообщений.
 
@@ -248,7 +284,7 @@ class Router(Generic[ClientT]):
 
     def on_message_edit(
         self,
-        *filters: FilterCallback[Message],
+        *filters: Filter[Message, ClientT],
     ) -> HandlerDecorator[Message, ClientT]:
         """Регистрирует обработчик редактирования сообщений.
 
@@ -262,7 +298,7 @@ class Router(Generic[ClientT]):
 
     def on_message_delete(
         self,
-        *filters: FilterCallback[MessageDeleteEvent],
+        *filters: Filter[MessageDeleteEvent, ClientT],
     ) -> HandlerDecorator[MessageDeleteEvent, ClientT]:
         """Регистрирует обработчик удаления сообщений.
 
@@ -276,35 +312,38 @@ class Router(Generic[ClientT]):
 
     def on_message_read(
         self,
-        *filters: FilterCallback[MessageReadEvent],
+        *filters: Filter[MessageReadEvent, ClientT],
     ) -> HandlerDecorator[MessageReadEvent, ClientT]:
         """Регистрирует обработчик изменения отметки прочтения."""
         return self.on(EventType.MESSAGE_READ, *filters)
 
     def on_typing(
         self,
-        *filters: FilterCallback[TypingEvent],
+        *filters: Filter[TypingEvent, ClientT],
     ) -> HandlerDecorator[TypingEvent, ClientT]:
         """Регистрирует обработчик набора текста."""
         return self.on(EventType.TYPING, *filters)
 
     def on_presence(
         self,
-        *filters: FilterCallback[PresenceEvent],
+        *filters: Filter[PresenceEvent, ClientT],
     ) -> HandlerDecorator[PresenceEvent, ClientT]:
         """Регистрирует обработчик изменения присутствия пользователя."""
         return self.on(EventType.PRESENCE, *filters)
 
     def on_reaction_update(
         self,
-        *filters: FilterCallback[ReactionUpdateEvent],
+        *filters: Filter[ReactionUpdateEvent, ClientT],
     ) -> HandlerDecorator[ReactionUpdateEvent, ClientT]:
-        """Регистрирует обработчик обновления реакций сообщения."""
+        """Регистрирует обработчик ``ReactionUpdateEvent``.
+
+        Получает обновления счетчиков реакций и реакции текущего пользователя.
+        """
         return self.on(EventType.REACTION_UPDATE, *filters)
 
     def on_chat_update(
         self,
-        *filters: FilterCallback[Chat],
+        *filters: Filter[Chat, ClientT],
     ) -> HandlerDecorator[Chat, ClientT]:
         """Регистрирует обработчик обновления чата.
 
@@ -316,11 +355,24 @@ class Router(Generic[ClientT]):
         """
         return self.on(EventType.CHAT_UPDATE, *filters)
 
+    def on_story_update(
+        self,
+        *filters: Filter[StoryPreview, ClientT],
+    ) -> HandlerDecorator[StoryPreview, ClientT]:
+        """Регистрирует обработчик обновления ``StoryPreview`` владельца.
+
+        Первый аргумент handler-а содержит сводное превью, а не ``Story``.
+        """
+        return self.on(EventType.STORY_UPDATE, *filters)
+
     def on_raw(
         self,
-        *filters: FilterCallback[InboundFrame],
+        *filters: Filter[InboundFrame, ClientT],
     ) -> HandlerDecorator[InboundFrame, ClientT]:
         """Регистрирует обработчик исходных frame-ов.
+
+        Вызывается после типизированной обработки, даже если тип события
+        неизвестен или его обработка завершилась ошибкой.
 
         Args:
             *filters: Фильтры для ``InboundFrame``.

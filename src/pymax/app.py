@@ -9,6 +9,7 @@ from pymax.dispatch import Dispatcher
 from pymax.dispatch.router import EventType, Router
 from pymax.exceptions import ApiError
 from pymax.fingerprint import FingerprintGenerator
+from pymax.fsm import InMemoryFSMStorage
 from pymax.logging import get_logger
 from pymax.protocol import Command, InboundFrame, OutboundFrame
 from pymax.protocol.enums import Opcode
@@ -43,6 +44,7 @@ class App(Generic[ClientT]):
             if self.config.persist_session
             else InMemoryStore()
         )
+        self.fsm_storage: InMemoryFSMStorage = InMemoryFSMStorage()
         self.auth_flow = auth_flow
         self.fingerprint_generator: FingerprintGenerator | None = (
             FingerprintGenerator(self.config.fingering) if self.config.fingering else None
@@ -57,7 +59,7 @@ class App(Generic[ClientT]):
         self.session: SessionInfo | None = None
         self.handshake_response: HandshakeResponse | None = None
 
-        self.started = False
+        self.started: bool = False
         self._ping_task: asyncio.Task[None] | None = None
         self._telemetry = TelemetryService(self) if config.telemetry else None
 
@@ -186,7 +188,7 @@ class App(Generic[ClientT]):
             if not handled:
                 raise
 
-            await self.close()
+            await self.disconnect()
             return
 
         if login_response.token is not None and login_response.token != self.session.token:
@@ -208,6 +210,7 @@ class App(Generic[ClientT]):
         self.messages = login_response.messages
 
         self.started = True
+
         logger.info(
             "client started profile=%s chats=%s",
             self.me.contact.id,
@@ -249,7 +252,7 @@ class App(Generic[ClientT]):
         logger.debug("handshake completed device_id=%s", device_id)
         return response
 
-    async def close(self) -> None:
+    async def disconnect(self) -> None:
         if self._telemetry:
             await self._telemetry.stop()
 
@@ -258,6 +261,7 @@ class App(Generic[ClientT]):
             self._ping_task = None
             if not task.done():
                 task.cancel()
+
             try:
                 await task
             except asyncio.CancelledError:
@@ -267,9 +271,12 @@ class App(Generic[ClientT]):
 
         await self.dispatcher.stop_startup_tasks()
         await self.connection.close()
-        await self.store.close()
 
         self.started = False
+
+    async def close(self):
+        await self.disconnect()
+        await self.store.close()
 
     async def invoke(
         self,
@@ -373,6 +380,11 @@ class App(Generic[ClientT]):
             error.localized_message,
         )
         return exc
+
+    def bind_connection(self, connection: ConnectionManager) -> None:
+        self.connection = connection
+        self.connection.on_event = self.on_event
+        self.connection.on_close = self.on_connection_lost
 
     async def on_event(self, frame: InboundFrame) -> None:
         logger.debug(

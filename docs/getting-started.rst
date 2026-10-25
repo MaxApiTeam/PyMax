@@ -35,6 +35,7 @@ PyMax спросит код в консоли и сохранит сессию �
    import asyncio
 
    from pymax import Client, Message
+   from pymax.filters import Command
 
    client = Client(
        phone="+79990000000",
@@ -49,11 +50,12 @@ PyMax спросит код в консоли и сохранит сессию �
        print("Чатов в первом sync:", len(client.chats or []))
 
 
-   @client.on_message()
+   @client.on_message(Command("start"))
    async def on_message(message: Message, client: Client) -> None:
        print(message.chat_id, message.sender, message.text)
 
-       await message.answer("Привет от PyMax")
+       if message.chat_id is not None:
+           await message.answer("Привет от PyMax")
 
 
    async def main() -> None:
@@ -63,12 +65,15 @@ PyMax спросит код в консоли и сохранит сессию �
    if __name__ == "__main__":
        asyncio.run(main())
 
+Отправьте ``/start``, чтобы вызвать обработчик. О собственных фильтрах и
+объединении условий читайте в :doc:`router`.
+
 Что происходит при запуске
 --------------------------
 
-1. ``Client`` открывает TCP-соединение с Max.
-2. Выполняется handshake с ``device_id``.
-3. PyMax ищет сохраненную сессию в ``work_dir/session_name``.
+1. PyMax подготавливает конфигурацию и загружает сохраненную сессию.
+2. ``Client`` открывает TCP-соединение с Max.
+3. Выполняется handshake с ``device_id`` из сессии или конфигурации.
 4. Если сессии нет, запускается авторизация.
 5. Клиент делает login и получает профиль, список чатов и sync-state.
 6. Вызываются ``on_start``-обработчики.

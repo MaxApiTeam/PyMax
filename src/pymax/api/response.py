@@ -60,7 +60,7 @@ def payload_item(
     if validation_type is None:
         return data
 
-    return cast(Any, validation_type)(data)
+    return cast("Any", validation_type)(data)
 
 
 def require_payload_item(

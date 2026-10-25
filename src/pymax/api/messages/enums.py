@@ -16,3 +16,4 @@ class MessagePayloadKey(str, Enum):
     MESSAGES = "messages"
     REACTION_INFO = "reactionInfo"
     MESSAGES_REACTIONS = "messagesReactions"
+    COMMENTS_INFO_UPDATES = "commentsInfoUpdates"

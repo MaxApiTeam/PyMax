@@ -4,9 +4,10 @@ import asyncio
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
-from pymax.dispatch import ErrorScope, Router
+from pymax.dispatch import ErrorScope, Middleware, Router
 from pymax.dispatch.router import DisconnectDecorator, ErrorDecorator
 from pymax.exceptions import ApiError
+from pymax.filters import Filter
 from pymax.fingerprint.models import ApkBuildFingerprint
 from pymax.infra import BaseMixin
 from pymax.logging import get_logger
@@ -19,7 +20,6 @@ if TYPE_CHECKING:
     from pymax.auth import AuthFlow
     from pymax.connection import ConnectionManager
     from pymax.dispatch.router import (
-        FilterCallback,
         HandlerDecorator,
         StartDecorator,
     )
@@ -30,6 +30,7 @@ if TYPE_CHECKING:
         MessageReadEvent,
         PresenceEvent,
         ReactionUpdateEvent,
+        StoryPreview,
         TypingEvent,
         User,
     )
@@ -125,7 +126,6 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
 
     @abstractmethod
     def _build_connection(self) -> ConnectionManager:
-
         raise NotImplementedError
 
     @abstractmethod
@@ -140,7 +140,10 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
             return
 
         self._connection = self._build_connection()
-        self._app = self._build_app()
+        if self.__app is not None:
+            self._app.bind_connection(self._connection)
+        else:
+            self._app = self._build_app()
 
     def _init_runtime(self: ClientT, *, auth_flow: AuthFlow) -> None:  # noqa: PYI019
         self._connection = self._build_connection()
@@ -158,14 +161,16 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
         app.dispatcher.bind_client(self)
         return app
 
-    def _reset_runtime(self: ClientT) -> None:  # noqa: PYI019
+    def _reset_connection(self: ClientT) -> None:  # noqa: PYI019
         self._connection = self._build_connection()
-        self._app = self._build_app()
+        self._app.bind_connection(self._connection)
+        # self._app = self._build_app()
 
     async def connect(self: ClientT) -> None:  # noqa: PYI019
-        """Подключает клиента один раз и возвращается после ``on_start``.
+        """Подключает клиента один раз и запускает ``on_start``-обработчики.
 
-        После возврата соединение остается открытым. В отличие от
+        Обработчики старта выполняются в отдельных задачах; метод не ждет
+        их завершения. После возврата соединение остается открытым. В отличие от
         :meth:`start`, метод не ожидает закрытия соединения и не запускает
         reconnect loop; завершите работу через :meth:`stop` или :meth:`close`.
         """
@@ -181,6 +186,9 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
             await self.close()
             raise
         except (ConnectionError, EOFError, OSError, TimeoutError, ApiError) as e:
+            if self.__app is None:
+                raise
+
             await self.close()
 
             await self._app.dispatcher.emit_disconnect(
@@ -189,13 +197,18 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
                 self.extra_config.reconnect_delay,
             )
             raise
+        except Exception:
+            await self.close()
+            raise
 
     async def start(self: ClientT) -> None:  # noqa: PYI019
         """Запускает клиента и слушает события до закрытия соединения.
 
         При сетевых ошибках повторяет подключение, если ``reconnect=True``.
         Отозванный login token автоматически сбрасывается при ``relogin=True``.
+        Если новый token тоже отклонен, ошибка передается вызывающему коду.
         """
+        relogin_attempted = False
         while True:
             try:
                 await self._ensure_runtime()
@@ -204,26 +217,38 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
                     await self.close()
                     return
 
+                relogin_attempted = False
                 await self._app.dispatcher.emit_start(self)
                 await self._connection.wait_closed()
             except asyncio.CancelledError:
                 await self.close()
                 raise
             except ApiError as e:
-                if not self._app._is_invalid_login_token_error(e):
+                if (
+                    not self._app._is_invalid_login_token_error(e)
+                    or not self.extra_config.relogin
+                    or relogin_attempted
+                ):
                     await self.close()
                     raise
 
                 logger.warning("login token was revoked; starting authentication again")
-                if self.extra_config.relogin:
-                    await self.relogin(start=False)
+                relogin_attempted = True
+                await self.relogin(start=False)
             except (
                 ConnectionError,
                 EOFError,
                 OSError,
                 TimeoutError,
             ) as e:
-                await self.close()
+                if self.__app is None:
+                    raise
+
+                if self.extra_config.reconnect:
+                    await self._app.disconnect()
+                else:
+                    await self.close()
+
                 await self._app.dispatcher.emit_disconnect(
                     e,
                     self.extra_config.reconnect,
@@ -239,7 +264,7 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
                     exc_info=True,
                 )
                 await asyncio.sleep(self.extra_config.reconnect_delay)
-                self._reset_runtime()
+                self._reset_connection()
             except Exception:
                 await self.close()
                 raise
@@ -270,63 +295,70 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
 
     def on_message(
         self,
-        *filters: FilterCallback[Message],
+        *filters: Filter[Message, ClientT],
     ) -> HandlerDecorator[Message, ClientT]:
         """Регистрирует обработчик новых сообщений."""
         return self._router.on_message(*filters)
 
     def on_message_edit(
         self,
-        *filters: FilterCallback[Message],
+        *filters: Filter[Message, ClientT],
     ) -> HandlerDecorator[Message, ClientT]:
         """Регистрирует обработчик редактирования сообщений."""
         return self._router.on_message_edit(*filters)
 
     def on_message_delete(
         self,
-        *filters: FilterCallback[MessageDeleteEvent],
+        *filters: Filter[MessageDeleteEvent, ClientT],
     ) -> HandlerDecorator[MessageDeleteEvent, ClientT]:
         """Регистрирует обработчик удаления сообщений."""
         return self._router.on_message_delete(*filters)
 
     def on_message_read(
         self,
-        *filters: FilterCallback[MessageReadEvent],
+        *filters: Filter[MessageReadEvent, ClientT],
     ) -> HandlerDecorator[MessageReadEvent, ClientT]:
         """Регистрирует обработчик изменения отметки прочтения."""
         return self._router.on_message_read(*filters)
 
     def on_typing(
         self,
-        *filters: FilterCallback[TypingEvent],
+        *filters: Filter[TypingEvent, ClientT],
     ) -> HandlerDecorator[TypingEvent, ClientT]:
         """Регистрирует обработчик набора текста."""
         return self._router.on_typing(*filters)
 
     def on_presence(
         self,
-        *filters: FilterCallback[PresenceEvent],
+        *filters: Filter[PresenceEvent, ClientT],
     ) -> HandlerDecorator[PresenceEvent, ClientT]:
         """Регистрирует обработчик изменения присутствия пользователя."""
         return self._router.on_presence(*filters)
 
     def on_reaction_update(
         self,
-        *filters: FilterCallback[ReactionUpdateEvent],
+        *filters: Filter[ReactionUpdateEvent, ClientT],
     ) -> HandlerDecorator[ReactionUpdateEvent, ClientT]:
         """Регистрирует обработчик обновления реакций сообщения."""
         return self._router.on_reaction_update(*filters)
 
     def on_chat_update(
         self,
-        *filters: FilterCallback[Chat],
+        *filters: Filter[Chat, ClientT],
     ) -> HandlerDecorator[Chat, ClientT]:
         """Регистрирует обработчик обновления чата."""
         return self._router.on_chat_update(*filters)
 
+    def on_story_update(
+        self,
+        *filters: Filter[StoryPreview, ClientT],
+    ) -> HandlerDecorator[StoryPreview, ClientT]:
+        """Регистрирует обработчик обновления превью сторис владельца."""
+        return self._router.on_story_update(*filters)
+
     def on_raw(
         self,
-        *filters: FilterCallback[InboundFrame],
+        *filters: Filter[InboundFrame, ClientT],
     ) -> HandlerDecorator[InboundFrame, ClientT]:
         """Регистрирует обработчик исходных входящих frame-ов."""
         return self._router.on_raw(*filters)
@@ -343,12 +375,23 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
         """Подключает дочерний router к root router клиента."""
         self._router.include_router(router)
 
+    def add_middleware(self, middleware: Middleware[ClientT]) -> None:
+        """Добавляет middleware в цепочку обработчиков клиента.
+
+        Middleware вызываются в порядке регистрации после проверки фильтров.
+        Регистрация доступна до запуска клиента и сохраняется при reconnect.
+        """
+        if middleware not in self._router.middlewares:
+            self._router.middlewares.append(middleware)
+        else:
+            logger.warning(f"Middleware {middleware.__class__.__name__} is already registered")
+
     async def relogin(self: ClientT, drop_config_token: bool = True, start: bool = True) -> None:  # noqa: PYI019
         """Удаляет текущую локальную сессию и запускает авторизацию заново.
 
         Args:
             drop_config_token: Сбросить token, переданный через ``ExtraConfig``.
-            start: Сразу запустить клиента после сброса runtime.
+            start: Сразу запустить клиента после сброса сессии.
         """
         store = self._app.store
         session = self._app.session
@@ -357,13 +400,15 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
             raise RuntimeError("Cannot relogin before session is loaded")
 
         await store.delete_session(session.token)
-        await self.close()
+        await self._app.disconnect()
 
         if drop_config_token:
             self.extra_config.token = None
             self._config.token = None
 
-        self._reset_runtime()
+        self._reset_connection()
+
+        self._app.session = None
 
         if start:
             await self.start()

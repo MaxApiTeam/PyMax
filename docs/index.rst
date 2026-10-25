@@ -22,6 +22,7 @@ PyMax - асинхронная Python-библиотека для Max API. Он�
    :maxdepth: 1
    :caption: Новости
 
+   release-2-5-0
    release-2-4-1
    release-2-4-0
    release-2-3-1
@@ -40,7 +41,10 @@ PyMax - асинхронная Python-библиотека для Max API. Он�
    client
    auth
    router
+   fsm
+   di
    messages
+   stories
    formatting
    chats
    users

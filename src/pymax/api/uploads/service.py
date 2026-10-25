@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import ssl
 from http import HTTPStatus
+from importlib import resources
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, quote, urlparse
 
@@ -25,6 +27,7 @@ from .models import (
 from .payloads import (
     AttachFilePayload,
     AttachPhotoPayload,
+    StoryVideoAttachPayload,
     UploadPayload,
     VideoAttachPayload,
     VideoNoteAttachPayload,
@@ -49,11 +52,22 @@ class UploadService:
         self.app.dispatcher.on_internal(EventType.FILE_READY)(self.on_file_attach)
         self.app.dispatcher.on_internal(EventType.VOICE_READY)(self.on_voice_attach)
 
-    async def upload_photo(self, photo: Photo, profile: bool = False) -> AttachPhotoPayload:
+        self.ssl_ctx = ssl.create_default_context()
+        self.ssl_ctx.load_verify_locations(
+            str(resources.files("pymax._data") / "rootca_ssl_rsa2022.crt")
+        )
+
+    async def upload_photo(
+        self,
+        photo: Photo,
+        profile: bool = False,
+        *,
+        upload_type: int = 0,
+    ) -> AttachPhotoPayload:
         logger.info("Uploading photo")
         logger.debug("Preparing photo upload payload")
 
-        payload = UploadPayload(profile=profile).to_payload()
+        payload = UploadPayload(profile=profile, type=upload_type).to_payload()
 
         try:
             data = await self.app.invoke(
@@ -82,11 +96,9 @@ class UploadService:
 
         try:
             parsed_url = urlparse(url)
-            photo_id = str(parse_qs(parsed_url.query)["photoIds"][0])
-        except (KeyError, IndexError) as e:
-            logger.exception("Photo upload URL does not contain photoIds")
-            logger.debug("Invalid photo upload URL=%s", url)
-            raise UploadError("Photo upload URL does not contain photoIds") from e
+            query = parse_qs(parsed_url.query)
+            photo_ids = query.get("photos") or query.get("photoIds")
+            photo_id = str(photo_ids[0]) if photo_ids else None
         except Exception as e:
             logger.exception("Failed to parse photo id from upload URL")
             logger.debug("Invalid photo upload URL=%s", url)
@@ -132,6 +144,7 @@ class UploadService:
                 session.post(
                     url=url,
                     data=form,
+                    ssl=self.ssl_ctx,
                 ) as response,
             ):
                 logger.debug("Photo upload HTTP response status=%s", response.status)
@@ -164,6 +177,12 @@ class UploadService:
             logger.exception("Invalid photo upload response model")
             logger.debug("Invalid photo upload response=%r", result)
             raise UploadError("Invalid photo upload response model") from e
+
+        if photo_id is None:
+            if len(model.photos) != 1:
+                logger.error("Expected one photo in upload response without a photo id")
+                raise UploadError("Expected one photo in upload response without a photo id")
+            photo_id = next(iter(model.photos))
 
         try:
             token = model.photos[photo_id].token
@@ -270,6 +289,7 @@ class UploadService:
                     url=upload_info.url,
                     headers=headers,
                     data=voice.iter_chunks(1024 * 1024),
+                    ssl=self.ssl_ctx,
                 ) as response:
                     logger.debug(
                         "Voice upload HTTP response status=%s voice_id=%s",
@@ -416,6 +436,7 @@ class UploadService:
                     url=upload_info.url,
                     headers=headers,
                     data=uploadable_video.iter_chunks(1024 * 1024),
+                    ssl=self.ssl_ctx,
                 ) as response:
                     logger.debug(
                         "Video upload HTTP response status=%s video_id=%s",
@@ -489,6 +510,71 @@ class UploadService:
             self.video_upload_waiters.pop(video_id, None)
             logger.debug("Video upload waiter removed video_id=%s", video_id)
 
+    async def upload_story_video(self, video: Video, duration: int) -> StoryVideoAttachPayload:
+        logger.info("Uploading story video")
+        payload = UploadPayload(type=3).to_payload()
+
+        try:
+            data = await self.app.invoke(Opcode.VIDEO_UPLOAD, payload=payload)
+        except Exception as e:
+            logger.exception("Failed to request story video upload URL")
+            raise UploadError("Failed to request story video upload URL") from e
+
+        try:
+            upload_info = VideoUploadResponse.model_validate(data.payload).info[0]
+        except (ValidationError, IndexError) as e:
+            logger.exception("Invalid story video upload response")
+            raise UploadError("Invalid story video upload response") from e
+
+        try:
+            file_size = await video.size()
+        except Exception as e:
+            logger.exception("Failed to get story video size")
+            raise UploadError("Failed to get story video size") from e
+
+        headers = {
+            "Content-Type": "application/octet-stream",
+            "Content-Disposition": f"attachment; filename={quote(str(video.name))}",
+            "Content-Range": f"bytes 0-{file_size - 1}/{file_size}",
+            "Content-Length": str(file_size),
+        }
+        timeout = aiohttp.ClientTimeout(total=self.app.config.upload_timeout, sock_read=60)
+
+        try:
+            async with (
+                aiohttp.ClientSession(timeout=timeout, proxy=self.app.config.proxy) as session,
+                session.post(
+                    url=upload_info.url,
+                    headers=headers,
+                    data=video.iter_chunks(1024 * 1024),
+                    ssl=self.ssl_ctx,
+                ) as response,
+            ):
+                logger.debug("Story video upload HTTP response status=%s", response.status)
+                if response.status != HTTPStatus.OK:
+                    raise UploadError(f"Story video upload failed with status {response.status}")
+
+                result = await response.json(content_type=None)
+                attachment = StoryVideoAttachPayload(
+                    duration=duration,
+                    token=result[0]["token"],
+                )
+
+        except UploadError:
+            raise
+        except aiohttp.ClientError as e:
+            logger.exception("HTTP error during story video upload")
+            raise UploadError("HTTP error during story video upload") from e
+        except asyncio.TimeoutError as e:
+            logger.exception("Timed out during story video upload")
+            raise UploadError("Timed out during story video upload") from e
+        except Exception as e:
+            logger.exception("Unexpected error during story video upload")
+            raise UploadError("Unexpected error during story video upload") from e
+
+        logger.debug("Story video upload complete video_id=%s", upload_info.video_id)
+        return attachment
+
     async def upload_file(self, file: File) -> AttachFilePayload:
         logger.info("Uploading file")
 
@@ -559,6 +645,7 @@ class UploadService:
                     url=upload_info.url,
                     headers=headers,
                     data=file.iter_chunks(1024 * 1024),
+                    ssl=self.ssl_ctx,
                 ) as response,
             ):
                 logger.debug(

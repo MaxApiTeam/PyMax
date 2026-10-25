@@ -414,3 +414,31 @@ class ChatMixin(IClientProtocol):
             permissions: Непустой список прав администратора.
         """
         return await self._app.api.chats.add_admin(chat_id, user_id, permissions)
+
+    async def set_channel_comments(self, chat_id: int, enabled: bool) -> None:
+        """Включает или выключает комментарии канала."""
+        return await self._app.api.chats.set_channel_comments(
+            chat_id=chat_id,
+            enabled=enabled,
+        )
+
+    async def block_comment_author(
+        self,
+        chat_id: int,
+        post_id: int,
+        user_ids: list[int],
+        message_id: int,
+        clean_msg_period: int = 0,
+    ) -> bool:
+        """Блокирует авторов в комментариях.
+
+        ``message_id`` — ID комментария для модерации.
+        ``clean_msg_period=0`` сохраняет комментарии, ``-1`` также удаляет их.
+        """
+        return await self._app.api.chats.block_comment_author(
+            chat_id=chat_id,
+            post_id=post_id,
+            user_ids=user_ids,
+            message_id=message_id,
+            clean_msg_period=clean_msg_period,
+        )

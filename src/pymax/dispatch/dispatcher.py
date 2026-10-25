@@ -3,11 +3,15 @@ from __future__ import annotations
 import asyncio
 import inspect
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, get_type_hints
 
+from pydantic import BaseModel
+
+from pymax.di import DiContext, DiResolver
+from pymax.filters import Filter
 from pymax.logging import get_logger
 from pymax.protocol import InboundFrame
-from pymax.types import Chat, MessageDeleteEvent
+from pymax.types import Chat, MessageDeleteEvent, StoryPreview
 from pymax.types.domain import Message
 from pymax.types.events import (
     MessageReadEvent,
@@ -17,7 +21,8 @@ from pymax.types.events import (
 )
 
 from .enums import EventType
-from .mapping import EventMapper, EventResolver
+from .mapping import DispatchEvent, EventMapper, EventResolver
+from .middleware import Middleware, MiddlewareNext
 from .router import (
     DisconnectCallback,
     DisconnectDecorator,
@@ -26,7 +31,6 @@ from .router import (
     ErrorEntry,
     ErrorScope,
     ErrorSource,
-    FilterCallback,
     HandlerCallback,
     HandlerDecorator,
     HandlerEntry,
@@ -45,16 +49,20 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 ClientT = TypeVar("ClientT", bound="BaseClient")
+EventT = TypeVar("EventT", bound=BaseModel)
 
 
 class Dispatcher(Generic[ClientT]):
-    def __init__(self, app: App, root_router: Router[ClientT] | None = None) -> None:
+    def __init__(self, app: App[ClientT], root_router: Router[ClientT] | None = None) -> None:
         self.root_router: Router[ClientT] = root_router or Router()
+        self.middlewares: list[Middleware[ClientT]] = self.root_router.middlewares
         self.internal_router: Router[ClientT] = Router()
         self.resolver = EventResolver()
         self.mapper = EventMapper(app)
         self.startup_tasks: list[asyncio.Task[Any]] = []
         self.client: ClientT | None = None
+        self.app = app
+        self.di_resolver = DiResolver()
 
     def bind_client(self, client: ClientT) -> None:
         self.client = client
@@ -67,10 +75,16 @@ class Dispatcher(Generic[ClientT]):
             len(router.children),
         )
 
+    def add_middleware(self, middleware: Middleware) -> None:
+        if middleware not in self.middlewares:  # TODO: make better comparison or just remove it
+            self.middlewares.append(middleware)
+        else:
+            logger.warning(f"Middleware {middleware.__class__.__name__} is already registered")
+
     def on_internal(
         self,
         event: EventType,
-        *filters: FilterCallback[Any],
+        *filters: Filter[Any, ClientT],
     ) -> HandlerDecorator[Any, ClientT]:
         logger.debug(
             "registering internal handler event=%s filters=%s",
@@ -82,7 +96,7 @@ class Dispatcher(Generic[ClientT]):
     def on(
         self,
         event: EventType,
-        *filters: FilterCallback[Any],
+        *filters: Filter[Any, ClientT],
     ) -> HandlerDecorator[Any, ClientT]:
         logger.debug("registering handler event=%s filters=%s", event, len(filters))
         return self.root_router.on(event, *filters)
@@ -96,57 +110,63 @@ class Dispatcher(Generic[ClientT]):
 
     def on_message(
         self,
-        *filters: FilterCallback[Message],
+        *filters: Filter[Message, ClientT],
     ) -> HandlerDecorator[Message, ClientT]:
         logger.debug("registering message handler filters=%s", len(filters))
         return self.root_router.on_message(*filters)
 
     def on_message_edit(
         self,
-        *filters: FilterCallback[Message],
+        *filters: Filter[Message, ClientT],
     ) -> HandlerDecorator[Message, ClientT]:
         logger.debug("registering message edit handler filters=%s", len(filters))
         return self.root_router.on_message_edit(*filters)
 
     def on_message_delete(
         self,
-        *filters: FilterCallback[MessageDeleteEvent],
+        *filters: Filter[MessageDeleteEvent, ClientT],
     ) -> HandlerDecorator[MessageDeleteEvent, ClientT]:
         return self.root_router.on_message_delete(*filters)
 
     def on_message_read(
         self,
-        *filters: FilterCallback[MessageReadEvent],
+        *filters: Filter[MessageReadEvent, ClientT],
     ) -> HandlerDecorator[MessageReadEvent, ClientT]:
         return self.root_router.on_message_read(*filters)
 
     def on_typing(
         self,
-        *filters: FilterCallback[TypingEvent],
+        *filters: Filter[TypingEvent, ClientT],
     ) -> HandlerDecorator[TypingEvent, ClientT]:
         return self.root_router.on_typing(*filters)
 
     def on_presence(
         self,
-        *filters: FilterCallback[PresenceEvent],
+        *filters: Filter[PresenceEvent, ClientT],
     ) -> HandlerDecorator[PresenceEvent, ClientT]:
         return self.root_router.on_presence(*filters)
 
     def on_reaction_update(
         self,
-        *filters: FilterCallback[ReactionUpdateEvent],
+        *filters: Filter[ReactionUpdateEvent, ClientT],
     ) -> HandlerDecorator[ReactionUpdateEvent, ClientT]:
         return self.root_router.on_reaction_update(*filters)
 
     def on_chat_update(
         self,
-        *filters: FilterCallback[Chat],
+        *filters: Filter[Chat, ClientT],
     ) -> HandlerDecorator[Chat, ClientT]:
         return self.root_router.on_chat_update(*filters)
 
+    def on_story_update(
+        self,
+        *filters: Filter[StoryPreview, ClientT],
+    ) -> HandlerDecorator[StoryPreview, ClientT]:
+        return self.root_router.on_story_update(*filters)
+
     def on_raw(
         self,
-        *filters: FilterCallback[InboundFrame],
+        *filters: Filter[InboundFrame, ClientT],
     ) -> HandlerDecorator[InboundFrame, ClientT]:
         return self.root_router.on_raw(*filters)
 
@@ -234,27 +254,41 @@ class Dispatcher(Generic[ClientT]):
         self.startup_tasks = []
 
     async def dispatch(self, frame: InboundFrame) -> None:
-        event_type = self.resolver.resolve(frame)
+        try:
+            event_type = self.resolver.resolve(frame)
 
-        if event_type is not None:
-            logger.debug("dispatching event type=%s", event_type)
-            event = self.mapper.map(event_type, frame)
-            await self._dispatch_to_router(self.internal_router, event_type, event)
-            await self._dispatch_to_router(self.root_router, event_type, event)
-        else:
-            logger.debug(
-                "dispatching raw event only opcode=%s cmd=%s",
-                frame.opcode,
-                frame.cmd,
-            )
+            if event_type is not None:
+                logger.debug("dispatching event type=%s", event_type)
+                event = self.mapper.map(event_type, frame)
 
-        await self._dispatch_to_router(self.root_router, EventType.RAW, frame)
+                if event:
+                    await self._dispatch_to_router(
+                        self.internal_router,
+                        event_type,
+                        event,
+                        apply_middleware=False,
+                    )
+                    if self.client:
+                        async with self.app.fsm_storage.isolate(self.client, event):
+                            await self._dispatch_to_router(self.root_router, event_type, event)
+                    else:
+                        await self._dispatch_to_router(self.root_router, event_type, event)
+            else:
+                logger.debug(
+                    "dispatching raw event only opcode=%s cmd=%s",
+                    frame.opcode,
+                    frame.cmd,
+                )
+        finally:
+            await self._dispatch_to_router(self.root_router, EventType.RAW, frame)
 
     async def _dispatch_to_router(
         self,
         router: Router[ClientT],
         event_type: EventType,
-        event: Any,
+        event: DispatchEvent,
+        *,
+        apply_middleware: bool = True,
     ) -> None:
         for entry in router.handlers.get(event_type, []):
             try:
@@ -264,24 +298,67 @@ class Dispatcher(Generic[ClientT]):
                         event_type,
                         _callback_name(entry.callback),
                     )
-                    await self._call(entry.callback, event)
-            except Exception as e:  # noqa: PERF203
+                    if apply_middleware:
+                        await self._call_with_middleware(entry.callback, event)
+                    else:
+                        await self._call(entry.callback, event)
+                    break
+            except Exception as e:
                 handled = await self.emit_error(e, event_type, event, router, entry)
                 if not handled:
                     raise
 
         for child in router.children:
-            await self._dispatch_to_router(child, event_type, event)
+            await self._dispatch_to_router(
+                child,
+                event_type,
+                event,
+                apply_middleware=apply_middleware,
+            )
+
+    async def _call_with_middleware(
+        self,
+        callback: HandlerCallback[DispatchEvent, ClientT],
+        event: DispatchEvent,
+    ) -> Any:
+
+        async def call_handler(event: DispatchEvent) -> Any:
+            return await self._call(callback, event)
+
+        call_next: MiddlewareNext = call_handler
+
+        for middleware in reversed(self.middlewares):
+            next_ = call_next
+
+            async def wrapped(
+                event: DispatchEvent,
+                middleware: Middleware[ClientT] = middleware,
+                next_: MiddlewareNext = next_,
+            ) -> Any:
+                if self.client is None:
+                    raise RuntimeError("client is not bound")
+
+                return await middleware(
+                    self.client,
+                    event,
+                    next_,
+                )
+
+            call_next = wrapped
+
+        return await call_next(event)
 
     async def _matches(
         self,
-        entry: HandlerEntry[Any, ClientT],
-        event: Any,
+        entry: HandlerEntry[DispatchEvent, ClientT],
+        event: DispatchEvent,
     ) -> bool:
         for flt in entry.filters:
-            result = flt(event)
-            if inspect.isawaitable(result):
-                result = await result
+            if not self.client:
+                return False
+            filter_match = flt(event, self.client)
+            result = await flt.resolve_filter_result(filter_match)
+
             if not result:
                 logger.debug(
                     "handler skipped by filter callback=%s",
@@ -290,11 +367,37 @@ class Dispatcher(Generic[ClientT]):
                 return False
         return True
 
-    async def _call(self, callback: HandlerCallback[Any, ClientT], event: Any) -> Any:
+    async def _call(
+        self, callback: HandlerCallback[DispatchEvent, ClientT], event: DispatchEvent
+    ) -> Any:
         if self.client is None:
             raise RuntimeError("client is not bound")
 
-        result = callback(event, self.client)
+        signature = inspect.signature(callback)
+        bound = signature.bind_partial(event, self.client)
+        bound.apply_defaults()
+
+        missing_parameters = [
+            (name, parameter)
+            for name, parameter in signature.parameters.items()
+            if name not in bound.arguments
+        ]
+
+        if missing_parameters:
+            hints = get_type_hints(callback, include_extras=True)
+
+            for name, parameter in missing_parameters:
+                annotation = hints.get(name, parameter.annotation)
+
+                ctx = DiContext(self.app, event, self.client)
+                result = await self.di_resolver.resolve(annotation, ctx)
+
+                if result is None:
+                    raise ValueError(f"No resolver was found for parameter: `{parameter}`")
+
+                bound.arguments[name] = result
+
+        result = callback(*bound.args, **bound.kwargs)
 
         if inspect.isawaitable(result):
             return await result

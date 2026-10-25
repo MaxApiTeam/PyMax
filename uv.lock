@@ -590,6 +590,18 @@ wheels = [
 ]
 
 [[package]]
+name = "dishka"
+version = "1.10.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/97/da/b75b5fe665d16725e1d46e291c8dd4b0ed1731c7964f41087fda92f03d40/dishka-1.10.1.tar.gz", hash = "sha256:51fb624b9acc948b90f57128460061d1f3a1780121fe1c7d14c565e8bbff2083", size = 282008, upload-time = "2026-04-25T12:07:57.587Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2c/08/dd3259a319ba45c48d975caf237c830c7873a203288cb4ab186cc5bef585/dishka-1.10.1-py3-none-any.whl", hash = "sha256:84f40c1115eb391ce3fb558fd7946c5bcaf6361c35b77b7a185b7697a5720ec7", size = 120062, upload-time = "2026-04-25T12:07:59.153Z" },
+]
+
+[[package]]
 name = "distlib"
 version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1017,7 +1029,7 @@ wheels = [
 
 [[package]]
 name = "maxapi-python"
-version = "2.4.1"
+version = "2.5.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -1032,6 +1044,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+dishka = [
+    { name = "dishka" },
+]
 video = [
     { name = "tinytag" },
 ]
@@ -1071,6 +1086,7 @@ requires-dist = [
     { name = "aiofiles", specifier = ">=25.1.0" },
     { name = "aiohttp", specifier = ">=3.13.5" },
     { name = "aiosqlite", specifier = ">=0.22.1" },
+    { name = "dishka", marker = "extra == 'dishka'", specifier = ">=1.10.1" },
     { name = "msgpack", specifier = ">=1.1.2" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "python-socks", extras = ["asyncio"], specifier = ">=2.8.1" },
@@ -1079,7 +1095,7 @@ requires-dist = [
     { name = "websockets", specifier = ">=16.0" },
     { name = "zstandard", specifier = ">=0.25.0" },
 ]
-provides-extras = ["video"]
+provides-extras = ["video", "dishka"]
 
 [package.metadata.requires-dev]
 dev = [

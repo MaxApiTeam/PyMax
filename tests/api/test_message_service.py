@@ -317,27 +317,22 @@ async def test_delete_pin_and_read_message_send_expected_opcodes(
             frame({}),
             frame({}),
             frame({"unread": 0, "mark": 3000000}),
-            frame({"unread": 0, "mark": 3000000}),
         ]
     )
 
     assert await app.api.messages.delete_message(100, [1, 2], for_me=True) is True
     assert await app.api.messages.pin_message(100, 2, notify_pin=False) is True
     read_state = await app.api.messages.read_message(2, 100)
-    web_read_state = await app.api.messages.read_message("3", 100)
 
     assert read_state.mark == 3000000
-    assert web_read_state.mark == 3000000
     assert [call.opcode for call in app.calls] == [
         Opcode.MSG_DELETE,
         Opcode.CHAT_UPDATE,
-        Opcode.CHAT_MARK,
         Opcode.CHAT_MARK,
     ]
     assert app.calls[0].payload["forMe"] is True
     assert app.calls[1].payload["pinMessageId"] == 2
     assert app.calls[2].payload["messageId"] == 2
-    assert app.calls[3].payload["messageId"] == "3"
 
 
 @pytest.mark.asyncio

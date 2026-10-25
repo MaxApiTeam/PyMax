@@ -24,8 +24,11 @@ WebSocket.
 
 - Авторизация по телефону и SMS-коду через `Client`.
 - QR-авторизация web-клиента через `WebClient`.
-- Роутеры, фильтры, `on_start`, raw-события и typed events.
+- Роутеры, составные фильтры, middleware, `on_start`, raw-события и typed events.
+- FSM для диалогов и необязательная интеграция с Dishka.
 - Сообщения: отправка и планирование, ответы, реакции, pin, read, delete и история.
+- Комментарии к постам каналов и нажатия inline-кнопок ботов.
+- Сторис: фото и видео, лента, реакции и статистика просмотров.
 - Чаты, группы, участники, invite-ссылки и настройки групп.
 - Пользователи, контакты, профиль, папки, активные сессии и 2FA.
 - Вложения: `Photo`, `File`, `Video`, `Voice`, `VideoNote`.
@@ -62,6 +65,7 @@ pip install git+https://github.com/MaxApiTeam/PyMax.git
 import asyncio
 
 from pymax import Client, Message
+from pymax.filters import Command
 
 client = Client(
     phone="+79990000000",
@@ -76,7 +80,7 @@ async def on_start(client: Client) -> None:
     print("Ваш ID:", client.me.contact.id if client.me else "unknown")
 
 
-@client.on_message()
+@client.on_message(Command("start"))
 async def on_message(message: Message, client: Client) -> None:
     print(message.chat_id, message.sender, message.text)
 
@@ -91,6 +95,8 @@ async def main() -> None:
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
+Отправьте `/start`, чтобы вызвать обработчик.
 
 ## WebClient
 
@@ -119,15 +125,12 @@ Handler всегда принимает событие и клиента: `(even
 
 ```python
 from pymax import Client, ClientRouter, Message
+from pymax.filters import Command
 
 router = ClientRouter()
 
 
-def is_start(message: Message) -> bool:
-    return message.text == "/start"
-
-
-@router.on_message(is_start)
+@router.on_message(Command("start"))
 async def start(message: Message, client: Client) -> None:
     await message.answer("Готово")
 
@@ -140,8 +143,11 @@ client.include_router(router)
 
 - [Getting Started](docs/getting-started.rst) - первый запуск и сессии.
 - [Client](docs/client.rst) - жизненный цикл клиента, reconnect и sync-state.
-- [Router](docs/router.rst) - роутеры, фильтры и raw events.
+- [Router](docs/router.rst) - роутеры, фильтры, middleware и raw events.
+- [FSM](docs/fsm.rst) - состояния и данные диалога.
+- [DI и Dishka](docs/di.rst) - зависимости обработчиков.
 - [Messages](docs/messages.rst) - сообщения, реакции, история и вложения.
+- [Stories](docs/stories.rst) - публикация и чтение сторис.
 - [Files](docs/files.rst) - отправка и скачивание файлов.
 - [FAQ](docs/faq.rst) и [Troubleshooting](docs/troubleshooting.rst) - частые
   проблемы.
