@@ -244,7 +244,11 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
                 if self.__app is None:
                     raise
 
-                await self.close()
+                if self.extra_config.reconnect:
+                    await self._app.disconnect()
+                else:
+                    await self.close()
+
                 await self._app.dispatcher.emit_disconnect(
                     e,
                     self.extra_config.reconnect,
@@ -396,7 +400,7 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
             raise RuntimeError("Cannot relogin before session is loaded")
 
         await store.delete_session(session.token)
-        await self.close()
+        await self._app.disconnect()
 
         if drop_config_token:
             self.extra_config.token = None
