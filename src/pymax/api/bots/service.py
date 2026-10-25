@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
+from pymax.api.binding import bind_api_model
 from pymax.api.response import require_payload_model
 from pymax.logging import get_logger
 from pymax.protocol import Opcode
@@ -39,4 +40,4 @@ class BotsService:
             callback_id=callback_id, type=type, payload=payload, timestamp=int(time.time() * 1000)
         )
         response = await self.app.invoke(Opcode.MSG_SEND_CALLBACK, frame.to_payload())
-        return require_payload_model(response, CallbackResponse)
+        return bind_api_model(self.app, require_payload_model(response, CallbackResponse))

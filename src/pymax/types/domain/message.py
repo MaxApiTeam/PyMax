@@ -168,6 +168,8 @@ class Message(CamelModel):
     :vartype id: int
     :ivar chat_id: ID чата, если он есть в данных сообщения.
     :vartype chat_id: int | None
+    :ivar post_id: ID поста канала, если сообщение является комментарием.
+    :vartype post_id: int | None
     :ivar sender: ID отправителя.
     :vartype sender: int | None
     :ivar text: Текст сообщения.
@@ -209,6 +211,7 @@ class Message(CamelModel):
 
     id: int
     chat_id: int | None = None
+    post_id: int | None = None
     sender: int | None = None
     text: str = ""
     time: int
@@ -248,7 +251,7 @@ class Message(CamelModel):
         notify: bool = True,
         send_at: DateTimeUnion | None = None,
     ) -> Message:
-        """Отправляет ответ на это сообщение в тот же чат.
+        """Отправляет ответ в тот же чат или ветку комментариев.
 
         :param text: Текст сообщения.
         :type text: str | None
@@ -263,8 +266,28 @@ class Message(CamelModel):
         :rtype: Message
         :raises RuntimeError: Если сообщение не привязано к сервису или не
             содержит ``chat_id``.
+        :raises ValueError: Если для комментария задана отложенная отправка.
         """
         actions, chat_id = self._bound()
+
+        if self.post_id is not None:
+            if send_at:
+                raise ValueError("Scheduled comments are not supported")
+
+            message = await actions.send_comment(
+                chat_id=chat_id,
+                post_id=self.post_id,
+                text=text,
+                reply_to=self.id,
+                attachments=attachments,
+                notify=notify,
+            )
+            if message.chat_id is None:
+                message.chat_id = chat_id
+            if message.post_id is None:
+                message.post_id = self.post_id
+
+            return message
 
         return await actions.send_message(
             chat_id=chat_id,
@@ -284,7 +307,7 @@ class Message(CamelModel):
         notify: bool = True,
         send_at: DateTimeUnion | None = None,
     ) -> Message:
-        """Отправляет сообщение в тот же чат.
+        """Отправляет сообщение в тот же чат или ветку комментариев.
 
         :param text: Текст сообщения.
         :type text: str | None
@@ -301,8 +324,28 @@ class Message(CamelModel):
         :rtype: Message
         :raises RuntimeError: Если сообщение не привязано к сервису или не
             содержит ``chat_id``.
+        :raises ValueError: Если для комментария задана отложенная отправка.
         """
         actions, chat_id = self._bound()
+
+        if self.post_id is not None:
+            if send_at:
+                raise ValueError("Scheduled comments are not supported")
+
+            message = await actions.send_comment(
+                chat_id=chat_id,
+                post_id=self.post_id,
+                text=text,
+                reply_to=reply_to,
+                attachments=attachments,
+                notify=notify,
+            )
+            if message.chat_id is None:
+                message.chat_id = chat_id
+            if message.post_id is None:
+                message.post_id = self.post_id
+
+            return message
 
         return await actions.send_message(
             chat_id=chat_id,
@@ -375,6 +418,21 @@ class Message(CamelModel):
         """
         actions, chat_id = self._bound()
 
+        if self.post_id is not None:
+            message = await actions.edit_comment(
+                chat_id=chat_id,
+                post_id=self.post_id,
+                message_id=self.id,
+                text=text,
+                attachments=attachments,
+            )
+            if message.chat_id is None:
+                message.chat_id = chat_id
+            if message.post_id is None:
+                message.post_id = self.post_id
+
+            return message
+
         return await actions.edit_message(
             chat_id=chat_id,
             message_id=self.id,
@@ -393,6 +451,14 @@ class Message(CamelModel):
             содержит ``chat_id``.
         """
         actions, chat_id = self._bound()
+
+        if self.post_id is not None:
+            return await actions.delete_comment(
+                chat_id=chat_id,
+                post_id=self.post_id,
+                message_ids=[self.id],
+                for_me=for_me,
+            )
 
         return await actions.delete_message(
             chat_id=chat_id,
@@ -427,6 +493,14 @@ class Message(CamelModel):
         """
         actions, chat_id = self._bound()
 
+        if self.post_id is not None:
+            return await actions.add_comment_reaction(
+                chat_id=chat_id,
+                post_id=self.post_id,
+                message_id=self.id,
+                reaction=reaction,
+            )
+
         return await actions.add_reaction(
             chat_id=chat_id,
             message_id=self.id,
@@ -442,6 +516,13 @@ class Message(CamelModel):
             содержит ``chat_id``.
         """
         actions, chat_id = self._bound()
+
+        if self.post_id is not None:
+            return await actions.remove_comment_reaction(
+                chat_id=chat_id,
+                post_id=self.post_id,
+                message_id=self.id,
+            )
 
         return await actions.remove_reaction(
             chat_id=chat_id,
@@ -494,6 +575,7 @@ class Message(CamelModel):
         return {
             **message,
             "chatId": value.get("chatId"),
+            "postId": value.get("postId"),
             "prevMessageId": value.get("prevMessageId"),
             "ttl": value.get("ttl"),
             "unread": value.get("unread"),
