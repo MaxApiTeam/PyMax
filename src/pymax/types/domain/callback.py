@@ -4,6 +4,13 @@ from .message import Message
 
 
 class CallbackResponse(CamelModel):
+    """Результат нажатия inline-кнопки бота.
+
+    ``success`` показывает результат операции. Необязательные ``message`` и
+    ``chat`` содержат дополнительные данные ответа Max и поддерживают методы
+    действий, если ответ получен через клиент.
+    """
+
     success: bool
     unread: int
     mark: int

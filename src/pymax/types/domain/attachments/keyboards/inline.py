@@ -69,6 +69,8 @@ ButtonRow: TypeAlias = list[Button]
 
 
 class InlineKeyboard(CamelModel):
+    """Inline-клавиатура со списком строк кнопок в ``buttons``."""
+
     buttons: list[ButtonRow]
 
 
@@ -78,7 +80,9 @@ class InlineKeyboardAttachment(CamelModel):
     :ivar type: Тип вложения.
     :vartype type: Literal[AttachmentType.INLINE_KEYBOARD]
     :ivar keyboard: Данные inline-клавиатуры.
-    :vartype keyboard: dict[str, Any]
+    :vartype keyboard: InlineKeyboard
+    :ivar callback_id: ID клавиатуры для ``client.send_callback()``.
+    :vartype callback_id: str
     """
 
     type: Literal[AttachmentType.INLINE_KEYBOARD] = Field(alias="_type")

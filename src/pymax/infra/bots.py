@@ -39,4 +39,15 @@ class BotsMixin(IClientProtocol):
         type: ButtonType,
         payload: str | None = None,
     ) -> CallbackResponse:
+        """Передает нажатие inline-кнопки бота.
+
+        Args:
+            callback_id: ID из ``InlineKeyboardAttachment.callback_id``.
+            type: Тип нажатой кнопки.
+            payload: Данные кнопки, если они есть.
+
+        Returns:
+            Результат нажатия. ``message`` и ``chat`` содержатся в нем,
+            только если Max вернул эти объекты.
+        """
         return await self._app.api.bots.send_callback(callback_id, type, payload)

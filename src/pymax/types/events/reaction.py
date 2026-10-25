@@ -13,8 +13,8 @@ class ReactionUpdateEvent(CamelModel):
     :vartype message_id: int
     :ivar chat_id: ID чата.
     :vartype chat_id: int
-    :ivar counters: Счетчики реакций по типам.
-    :vartype counters: list[ReactionCounter]
+    :ivar counters: Счетчики реакций по типам, если Max их прислал.
+    :vartype counters: list[ReactionCounter] | None
     :ivar total_count: Общее количество реакций.
     :vartype total_count: int
     :ivar your_reaction: Реакция текущего пользователя, если она есть.

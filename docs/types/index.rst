@@ -40,6 +40,12 @@ Types
 ``ContactInfo``
    Контакт телефонной книги для ``import_contacts()``.
 
+``Story`` и ``StoryPreview``
+   Отдельная сторис с ID и сводная информация о сторис владельца в ленте.
+
+``CallbackResponse``
+   Результат нажатия inline-кнопки через ``send_callback()``.
+
 ``PhotoAttachment``, ``VideoAttachment``, ``FileAttachment``, ``PollAttachment`` и другие
    Входящие вложения в ``message.attaches``.
 
@@ -88,6 +94,8 @@ API reference
 
    chat
    message
+   story
+   callback_response
    message_delete_event
    message_read_event
    typing_event

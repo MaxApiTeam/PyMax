@@ -9,11 +9,12 @@ Examples
    import asyncio
 
    from pymax import Client, Message
+   from pymax.filters import FromMe
 
    client = Client(phone="+79990000000", work_dir="cache")
 
 
-   @client.on_message()
+   @client.on_message(~FromMe())
    async def echo(message: Message, client: Client) -> None:
        if message.chat_id is None or not message.text:
            return
@@ -28,26 +29,18 @@ Examples
 
 .. code-block:: python
 
-   from collections.abc import Callable
-
    from pymax import Client, ClientRouter, Message
+   from pymax.filters import Command
 
    router = ClientRouter()
 
 
-   def command(name: str) -> Callable[[Message], bool]:
-       def filter_message(message: Message) -> bool:
-           return message.text == f"/{name}"
-
-       return filter_message
-
-
-   @router.on_message(command("start"))
+   @router.on_message(Command("start"))
    async def start(message: Message, client: Client) -> None:
        await message.answer("Привет")
 
 
-   @router.on_message(command("me"))
+   @router.on_message(Command("me"))
    async def me(message: Message, client: Client) -> None:
        if client.me:
            await message.answer(f"Ваш ID: {client.me.contact.id}")

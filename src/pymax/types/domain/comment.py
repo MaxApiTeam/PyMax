@@ -16,8 +16,8 @@ class CommentsInfoUpdate(CamelModel):
 
     :ivar post_id: ID поста.
     :vartype post_id: int
-    :ivar comments_info: Счетчики комментариев поста.
-    :vartype comments_info: CommentsInfo
+    :ivar comments_info: Счетчики комментариев поста, если Max их прислал.
+    :vartype comments_info: CommentsInfo | None
     """
 
     post_id: int

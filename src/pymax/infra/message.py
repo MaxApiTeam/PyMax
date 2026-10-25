@@ -340,12 +340,8 @@ class MessageMixin(IClientProtocol):
     async def read_message(self, message_id: int, chat_id: int) -> ReadState:
         """Отмечает сообщение как прочитанное.
 
-        У Max различается wire-формат ``message_id`` для отметки прочтения:
-        TCP-клиент ожидает ``int``, WebSocket-клиент - ``str``.
-
         Args:
-            message_id: ID сообщения. Передавайте ``int`` для ``Client`` и
-                ``str`` для ``WebClient``.
+            message_id: ID сообщения как ``int`` для ``Client`` и ``WebClient``.
             chat_id: ID чата.
 
         Returns:
@@ -393,7 +389,16 @@ class MessageMixin(IClientProtocol):
     ) -> Message:
         """Отправляет комментарий к посту канала.
 
-        ``reply_to`` задает ID комментария для ответа; текст поддерживает markdown.
+        Args:
+            chat_id: ID канала.
+            post_id: ID поста в канале.
+            text: Текст комментария с поддержкой Markdown.
+            reply_to: ID комментария, на который нужно ответить.
+            attachments: Вложения комментария.
+            notify: Отправить уведомление о комментарии.
+
+        Returns:
+            Опубликованный комментарий как ``Message``.
         """
         return await self._app.api.messages.send_comment(
             chat_id=chat_id,
@@ -413,7 +418,12 @@ class MessageMixin(IClientProtocol):
         get_messages: bool = True,
         forward: int = 0,
     ) -> list[Message]:
-        """Возвращает комментарии к посту канала."""
+        """Возвращает страницу комментариев поста канала.
+
+        ``chat_id`` задает канал, ``post_id`` — пост внутри него.
+        ``backward`` и ``forward`` задают количество комментариев по сторонам
+        от ``from_``. При ``from_=None`` используется начальная позиция Max.
+        """
         return await self._app.api.messages.fetch_comments(
             chat_id=chat_id,
             post_id=post_id,
@@ -429,7 +439,11 @@ class MessageMixin(IClientProtocol):
         post_id: int,
         message_ids: list[int],
     ) -> list[Message]:
-        """Возвращает конкретные комментарии поста по их ID."""
+        """Возвращает конкретные комментарии поста по их ID.
+
+        ``chat_id`` задает канал, ``post_id`` — пост, а ``message_ids`` —
+        ID запрашиваемых комментариев.
+        """
         return await self._app.api.messages.get_comments(
             chat_id=chat_id,
             post_id=post_id,
