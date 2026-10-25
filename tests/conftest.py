@@ -22,6 +22,7 @@ from pymax.api.uploads.payloads import (
 from pymax.api.users.service import UserService
 from pymax.config import ClientConfig, DeviceConfig
 from pymax.fingerprint.fingerprint import FingerprintGenerator
+from pymax.fsm import InMemoryFSMStorage
 from pymax.protocol import Command, InboundFrame
 from pymax.session.models import SessionInfo
 from pymax.types.domain import AttachmentType, HandshakeResponse
@@ -161,6 +162,7 @@ class FakeApp:
         self.calls: list[InvokeCall] = []
         self.config = make_config(device_type)
         self.store = FakeStore()
+        self.fsm_storage = InMemoryFSMStorage()
         self.dispatcher = FakeDispatcher()
         self.connection = SimpleNamespace(is_open=True)
 

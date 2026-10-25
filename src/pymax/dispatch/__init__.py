@@ -8,6 +8,7 @@ from .router import (
     DisconnectDecorator,
     ErrorContext,
     ErrorScope,
+    HandlerCallback,
     Router,
 )
 
@@ -20,6 +21,7 @@ __all__ = (
     "ErrorContext",
     "ErrorScope",
     "EventType",
+    "HandlerCallback",
     "Middleware",
     "MiddlewareNext",
     "Router",

@@ -17,6 +17,14 @@ ClientT = TypeVar("ClientT", bound="BaseClient")
 
 
 class Filter(ABC, Generic[EventT, ClientT]):
+    """Базовый класс фильтра событий.
+
+    Реализуйте ``__call__(event, client)`` с результатом ``bool`` или
+    ``Awaitable[bool]`` и передайте экземпляр в декоратор роутера. Фильтры
+    объединяются через ``&``, ``|`` и ``~``; составной фильтр при ручном вызове
+    нужно ожидать через ``await``.
+    """
+
     @abstractmethod
     def __call__(
         self,

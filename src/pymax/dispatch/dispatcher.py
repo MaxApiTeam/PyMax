@@ -3,8 +3,11 @@ from __future__ import annotations
 import asyncio
 import inspect
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, get_type_hints
 
+from pydantic import BaseModel
+
+from pymax.di import DiContext, DiResolver
 from pymax.filters import Filter
 from pymax.logging import get_logger
 from pymax.protocol import InboundFrame
@@ -46,11 +49,11 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 ClientT = TypeVar("ClientT", bound="BaseClient")
-EventT = TypeVar("EventT")
+EventT = TypeVar("EventT", bound=BaseModel)
 
 
 class Dispatcher(Generic[ClientT]):
-    def __init__(self, app: App, root_router: Router[ClientT] | None = None) -> None:
+    def __init__(self, app: App[ClientT], root_router: Router[ClientT] | None = None) -> None:
         self.root_router: Router[ClientT] = root_router or Router()
         self.middlewares: list[Middleware[ClientT]] = self.root_router.middlewares
         self.internal_router: Router[ClientT] = Router()
@@ -58,6 +61,8 @@ class Dispatcher(Generic[ClientT]):
         self.mapper = EventMapper(app)
         self.startup_tasks: list[asyncio.Task[Any]] = []
         self.client: ClientT | None = None
+        self.app = app
+        self.di_resolver = DiResolver()
 
     def bind_client(self, client: ClientT) -> None:
         self.client = client
@@ -249,10 +254,19 @@ class Dispatcher(Generic[ClientT]):
             if event_type is not None:
                 logger.debug("dispatching event type=%s", event_type)
                 event = self.mapper.map(event_type, frame)
-                await self._dispatch_to_router(
-                    self.internal_router, event_type, event, apply_middleware=False
-                )
-                await self._dispatch_to_router(self.root_router, event_type, event)
+
+                if event:
+                    await self._dispatch_to_router(
+                        self.internal_router,
+                        event_type,
+                        event,
+                        apply_middleware=False,
+                    )
+                    if self.client:
+                        async with self.app.fsm_storage.isolate(self.client, event):
+                            await self._dispatch_to_router(self.root_router, event_type, event)
+                    else:
+                        await self._dispatch_to_router(self.root_router, event_type, event)
             else:
                 logger.debug(
                     "dispatching raw event only opcode=%s cmd=%s",
@@ -282,7 +296,8 @@ class Dispatcher(Generic[ClientT]):
                         await self._call_with_middleware(entry.callback, event)
                     else:
                         await self._call(entry.callback, event)
-            except Exception as e:  # noqa: PERF203
+                    break
+            except Exception as e:
                 handled = await self.emit_error(e, event_type, event, router, entry)
                 if not handled:
                     raise
@@ -329,8 +344,8 @@ class Dispatcher(Generic[ClientT]):
 
     async def _matches(
         self,
-        entry: HandlerEntry[Any, ClientT],
-        event: Any,
+        entry: HandlerEntry[DispatchEvent, ClientT],
+        event: DispatchEvent,
     ) -> bool:
         for flt in entry.filters:
             if not self.client:
@@ -346,11 +361,37 @@ class Dispatcher(Generic[ClientT]):
                 return False
         return True
 
-    async def _call(self, callback: HandlerCallback[Any, ClientT], event: Any) -> Any:
+    async def _call(
+        self, callback: HandlerCallback[DispatchEvent, ClientT], event: DispatchEvent
+    ) -> Any:
         if self.client is None:
             raise RuntimeError("client is not bound")
 
-        result = callback(event, self.client)
+        signature = inspect.signature(callback)
+        bound = signature.bind_partial(event, self.client)
+        bound.apply_defaults()
+
+        missing_parameters = [
+            (name, parameter)
+            for name, parameter in signature.parameters.items()
+            if name not in bound.arguments
+        ]
+
+        if missing_parameters:
+            hints = get_type_hints(callback, include_extras=True)
+
+            for name, parameter in missing_parameters:
+                annotation = hints.get(name, parameter.annotation)
+
+                ctx = DiContext(self.app, event, self.client)
+                result = await self.di_resolver.resolve(annotation, ctx)
+
+                if result is None:
+                    raise ValueError(f"No resolver was found for parameter: `{parameter}`")
+
+                bound.arguments[name] = result
+
+        result = callback(*bound.args, **bound.kwargs)
 
         if inspect.isawaitable(result):
             return await result

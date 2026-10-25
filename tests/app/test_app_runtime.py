@@ -404,6 +404,10 @@ async def test_app_start_emits_missing_profile_error_to_root_router(
     assert str(seen[0]) == "Login response does not contain profile"
     assert app.started is False
     assert connection.closed is True
+    assert store.closed is False
+
+    await app.close()
+
     assert store.closed is True
 
 
@@ -455,9 +459,11 @@ async def test_app_start_emits_login_errors_to_root_router(
     assert ctx.handler is None
     assert app.started is False
     assert connection.closed is True
-    assert store.closed is True
+    assert store.closed is False
 
     await app.close()
+
+    assert store.closed is True
 
 
 @pytest.mark.asyncio

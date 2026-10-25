@@ -125,7 +125,6 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
 
     @abstractmethod
     def _build_connection(self) -> ConnectionManager:
-
         raise NotImplementedError
 
     @abstractmethod
@@ -140,7 +139,10 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
             return
 
         self._connection = self._build_connection()
-        self._app = self._build_app()
+        if self.__app is not None:
+            self._app.bind_connection(self._connection)
+        else:
+            self._app = self._build_app()
 
     def _init_runtime(self: ClientT, *, auth_flow: AuthFlow) -> None:  # noqa: PYI019
         self._connection = self._build_connection()
@@ -158,14 +160,16 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
         app.dispatcher.bind_client(self)
         return app
 
-    def _reset_runtime(self: ClientT) -> None:  # noqa: PYI019
+    def _reset_connection(self: ClientT) -> None:  # noqa: PYI019
         self._connection = self._build_connection()
-        self._app = self._build_app()
+        self._app.bind_connection(self._connection)
+        # self._app = self._build_app()
 
     async def connect(self: ClientT) -> None:  # noqa: PYI019
-        """Подключает клиента один раз и возвращается после ``on_start``.
+        """Подключает клиента один раз и запускает ``on_start``-обработчики.
 
-        После возврата соединение остается открытым. В отличие от
+        Обработчики старта выполняются в отдельных задачах; метод не ждет
+        их завершения. После возврата соединение остается открытым. В отличие от
         :meth:`start`, метод не ожидает закрытия соединения и не запускает
         reconnect loop; завершите работу через :meth:`stop` или :meth:`close`.
         """
@@ -181,6 +185,9 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
             await self.close()
             raise
         except (ConnectionError, EOFError, OSError, TimeoutError, ApiError) as e:
+            if self.__app is None:
+                raise
+
             await self.close()
 
             await self._app.dispatcher.emit_disconnect(
@@ -233,6 +240,9 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
                 OSError,
                 TimeoutError,
             ) as e:
+                if self.__app is None:
+                    raise
+
                 await self.close()
                 await self._app.dispatcher.emit_disconnect(
                     e,
@@ -249,7 +259,7 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
                     exc_info=True,
                 )
                 await asyncio.sleep(self.extra_config.reconnect_delay)
-                self._reset_runtime()
+                self._reset_connection()
             except Exception:
                 await self.close()
                 raise
@@ -369,7 +379,7 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
 
         Args:
             drop_config_token: Сбросить token, переданный через ``ExtraConfig``.
-            start: Сразу запустить клиента после сброса runtime.
+            start: Сразу запустить клиента после сброса сессии.
         """
         store = self._app.store
         session = self._app.session
@@ -384,7 +394,9 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
             self.extra_config.token = None
             self._config.token = None
 
-        self._reset_runtime()
+        self._reset_connection()
+
+        self._app.session = None
 
         if start:
             await self.start()

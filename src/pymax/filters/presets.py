@@ -12,6 +12,15 @@ if TYPE_CHECKING:
 
 
 class Command(Filter[Message, "BaseClient"]):
+    """Проверяет команду в первом слове текста сообщения.
+
+    Args:
+        command: Имя команды, например ``"start"`` для ``/start``.
+        prefix: Префикс команды или кортеж допустимых префиксов.
+
+    Аргументы после команды не влияют на совпадение.
+    """
+
     def __init__(self, command: str, prefix: str | tuple[str, ...] = "/") -> None:
         self.prefixes = (prefix,) if isinstance(prefix, str) else prefix
 
@@ -32,6 +41,8 @@ class Command(Filter[Message, "BaseClient"]):
 
 
 class Reply(Filter[Message, "BaseClient"]):
+    """Проверяет, является ли сообщение ответом на другое сообщение."""
+
     def __call__(self, message: Message, _: BaseClient) -> bool:
         if not message.link:
             return False
@@ -40,6 +51,8 @@ class Reply(Filter[Message, "BaseClient"]):
 
 
 class Forwarded(Filter[Message, "BaseClient"]):
+    """Проверяет, является ли сообщение пересланным."""
+
     def __call__(self, message: Message, _: BaseClient) -> bool:
         if not message.link:
             return False
@@ -48,6 +61,8 @@ class Forwarded(Filter[Message, "BaseClient"]):
 
 
 class FromMe(Filter[Message, "BaseClient"]):
+    """Проверяет, отправлено ли сообщение текущим пользователем клиента."""
+
     def __call__(self, message: Message, client: BaseClient) -> bool:
         if not message.sender or not client.me:
             return False
@@ -56,6 +71,12 @@ class FromMe(Filter[Message, "BaseClient"]):
 
 
 class HasAttachment(Filter[Message, "BaseClient"]):
+    """Проверяет наличие хотя бы одного вложения указанных типов.
+
+    Передавайте классы входящих вложений из ``pymax.types``, например
+    ``PhotoAttachment``, а не классы файлов для отправки.
+    """
+
     def __init__(self, *attachment_types: type[Attachment]) -> None:
         self.expected_types = attachment_types
 

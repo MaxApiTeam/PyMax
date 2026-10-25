@@ -88,6 +88,10 @@ dev = [
 video = [
   "tinytag>=2.2.1",
 ]
+dishka = [
+    "dishka>=1.10.1",
+]
+
 
 [tool.uv]
 package = true
