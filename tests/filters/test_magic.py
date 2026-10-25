@@ -47,7 +47,7 @@ def make_photo() -> PhotoAttachment:
 def test_message_container_exposes_supported_message_fields() -> None:
     fields = {name for name, value in vars(type(F.message)).items() if isinstance(value, property)}
 
-    assert fields == set(Message.model_fields) - {"link"}
+    assert fields == set(Message.model_fields) - {"link", "delayed_attributes"}
 
 
 def test_chat_container_exposes_all_chat_fields() -> None:

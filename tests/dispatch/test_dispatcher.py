@@ -219,7 +219,7 @@ async def test_dispatcher_maps_reaction_update_event() -> None:
     router: Router[str] = Router()
     dispatcher: Dispatcher[str] = Dispatcher(app, router)
     dispatcher.bind_client("client")
-    seen: list[tuple[str, int, int, int, str]] = []
+    seen: list[tuple[int, int, int, int, str]] = []
 
     @router.on_reaction_update()
     async def on_reaction_update(event, _client):
@@ -246,7 +246,7 @@ async def test_dispatcher_maps_reaction_update_event() -> None:
         )
     )
 
-    assert seen == [("116739131144745294", 239067070, 1, 1, "👍")]
+    assert seen == [(116739131144745294, 239067070, 1, 1, "👍")]
 
 
 @pytest.mark.asyncio
