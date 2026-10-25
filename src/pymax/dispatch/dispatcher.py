@@ -11,7 +11,7 @@ from pymax.di import DiContext, DiResolver
 from pymax.filters import Filter
 from pymax.logging import get_logger
 from pymax.protocol import InboundFrame
-from pymax.types import Chat, MessageDeleteEvent
+from pymax.types import Chat, MessageDeleteEvent, StoryPreview
 from pymax.types.domain import Message
 from pymax.types.events import (
     MessageReadEvent,
@@ -157,6 +157,12 @@ class Dispatcher(Generic[ClientT]):
         *filters: Filter[Chat, ClientT],
     ) -> HandlerDecorator[Chat, ClientT]:
         return self.root_router.on_chat_update(*filters)
+
+    def on_story_update(
+        self,
+        *filters: Filter[StoryPreview, ClientT],
+    ) -> HandlerDecorator[StoryPreview, ClientT]:
+        return self.root_router.on_story_update(*filters)
 
     def on_raw(
         self,

@@ -21,5 +21,17 @@ from .name import Name
 from .presence import Presence
 from .profile import Profile
 from .session import Session
+from .story import (
+    Story,
+    StoryClickableLink,
+    StoryCoordinates,
+    StoryDetailedStats,
+    StoryLayer,
+    StoryMedia,
+    StoryOwner,
+    StoryPhotoMedia,
+    StoryPreview,
+    StoryVideoMedia,
+)
 from .sync import SyncOverrides, SyncState
 from .user import ContactInfo, User

@@ -7,7 +7,7 @@ from pymax.api.binding import bind_api_model
 from pymax.protocol import InboundFrame, Opcode
 from pymax.protocol.enums import Command
 from pymax.types import AudioUploadSignal, Chat, MessageDeleteEvent
-from pymax.types.domain import Message
+from pymax.types.domain import Message, StoryPreview
 from pymax.types.events import (
     FileUploadSignal,
     MessageReadEvent,
@@ -26,6 +26,7 @@ from .resolvers import (
     resolve_message_read,
     resolve_presence,
     resolve_reaction_update,
+    resolve_story_update,
     resolve_typing,
 )
 
@@ -41,11 +42,13 @@ DispatchEvent: TypeAlias = (
     | TypingEvent
     | PresenceEvent
     | ReactionUpdateEvent
+    | StoryPreview
     | VideoUploadSignal
     | FileUploadSignal
     | AudioUploadSignal
     | InboundFrame
 )
+
 
 EVENT_MAP: dict[Opcode, Resolver] = {
     Opcode.NOTIF_MESSAGE: resolve_message,
@@ -58,6 +61,7 @@ EVENT_MAP: dict[Opcode, Resolver] = {
     Opcode.NOTIF_PRESENCE: resolve_presence,
     Opcode.NOTIF_MSG_REACTIONS_CHANGED: resolve_reaction_update,
     Opcode.NOTIF_MSG_YOU_REACTED: resolve_reaction_update,
+    Opcode.NOTIF_STORIES_UPDATE: resolve_story_update,
 }
 
 
@@ -82,7 +86,7 @@ class EventMapper:
     def __init__(self, app: App) -> None:
         self.app = app
 
-    def map(self, event_type: EventType, frame: InboundFrame):
+    def map(self, event_type: EventType, frame: InboundFrame) -> DispatchEvent | None:
         if frame.cmd != Command.REQUEST:
             return None
 
@@ -110,6 +114,8 @@ class EventMapper:
                 return PresenceEvent.model_validate(frame.payload)
             elif event_type == EventType.REACTION_UPDATE:
                 return ReactionUpdateEvent.model_validate(frame.payload)
+            elif event_type == EventType.STORY_UPDATE:
+                return StoryPreview.model_validate(frame.payload["storiesPreview"])
             elif event_type == EventType.VIDEO_READY:
                 return VideoUploadSignal.model_validate(frame.payload)
             elif event_type == EventType.FILE_READY:

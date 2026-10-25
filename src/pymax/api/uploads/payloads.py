@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field, SerializerFunctionWrapHandler, model_serializer
 
@@ -9,6 +9,15 @@ from pymax.types import AttachmentType
 class AttachPhotoPayload(CamelModel):
     type: AttachmentType = Field(default=AttachmentType.PHOTO, serialization_alias="_type")
     photo_token: str
+
+
+class StoryVideoAttachPayload(CamelModel):
+    type: Literal[AttachmentType.VIDEO] = Field(
+        default=AttachmentType.VIDEO, serialization_alias="_type"
+    )
+    video_type: Literal[2] = 2
+    duration: int
+    token: str
 
 
 class VideoAttachPayload(CamelModel):

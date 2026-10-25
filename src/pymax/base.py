@@ -30,6 +30,7 @@ if TYPE_CHECKING:
         MessageReadEvent,
         PresenceEvent,
         ReactionUpdateEvent,
+        StoryPreview,
         TypingEvent,
         User,
     )
@@ -343,6 +344,13 @@ class BaseClient(BaseMixin, ABC, Generic[ClientT]):
     ) -> HandlerDecorator[Chat, ClientT]:
         """Регистрирует обработчик обновления чата."""
         return self._router.on_chat_update(*filters)
+
+    def on_story_update(
+        self,
+        *filters: Filter[StoryPreview, ClientT],
+    ) -> HandlerDecorator[StoryPreview, ClientT]:
+        """Регистрирует обработчик обновления превью сторис владельца."""
+        return self._router.on_story_update(*filters)
 
     def on_raw(
         self,

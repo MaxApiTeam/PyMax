@@ -10,6 +10,7 @@ class EventType(str, Enum):
     PRESENCE = "presence"
     REACTION_UPDATE = "reaction_update"
     CHAT_UPDATE = "chat_update"
+    STORY_UPDATE = "story_update"
     USER_UPDATE = "user_update"
     VIDEO_READY = "video_ready"
     FILE_READY = "file_ready"

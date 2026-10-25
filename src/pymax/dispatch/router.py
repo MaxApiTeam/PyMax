@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from pymax.client import Client
     from pymax.dispatch.middleware import Middleware
     from pymax.protocol import InboundFrame
-    from pymax.types import Chat
+    from pymax.types import Chat, StoryPreview
     from pymax.types.domain import Message
     from pymax.types.events import (
         MessageReadEvent,
@@ -354,6 +354,16 @@ class Router(Generic[ClientT]):
             Декоратор для ``handler(chat, client)``.
         """
         return self.on(EventType.CHAT_UPDATE, *filters)
+
+    def on_story_update(
+        self,
+        *filters: Filter[StoryPreview, ClientT],
+    ) -> HandlerDecorator[StoryPreview, ClientT]:
+        """Регистрирует обработчик обновления ``StoryPreview`` владельца.
+
+        Первый аргумент handler-а содержит сводное превью, а не ``Story``.
+        """
+        return self.on(EventType.STORY_UPDATE, *filters)
 
     def on_raw(
         self,

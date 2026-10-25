@@ -10,6 +10,7 @@ from .chats import ChatService
 from .messages import MessageService
 from .self import SelfService
 from .session import SessionService
+from .stories import StoriesService
 from .uploads import UploadService
 from .users import UserService
 
@@ -31,4 +32,5 @@ class ApiFacade:
         self.session = SessionService(app)
         self.auth = AuthService(app)
         self.uploads = UploadService(app)
+        self.stories = StoriesService(app)
         logger.debug("api facade initialized")
