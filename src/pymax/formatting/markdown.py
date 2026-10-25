@@ -88,6 +88,34 @@ class Formatter:
         while i < len(text):
             handled = False
 
+            for marker in ("```", "`"):
+                if marker not in active:
+                    continue
+
+                closing_index = text.find(marker, i)
+                content = text[i:closing_index]
+                clean_text += content
+                clean_pos += Formatter._code_units_len(content)
+
+                start = active.pop(marker)
+                length = clean_pos - start
+                if length > 0:
+                    entities.append(
+                        Element(
+                            type=Formatter.MARKERS[marker],
+                            from_=start,
+                            length=length,
+                        )
+                    )
+
+                i = closing_index + len(marker)
+                handled = True
+                break
+
+            if handled:
+                line_start = False
+                continue
+
             # LINK: [text](url)
             parsed_link = Formatter._parse_link(text, i, clean_pos)
 
