@@ -108,13 +108,13 @@ class ReplyLink(MessageLink):
 
     :ivar message: Сообщение, на которое ответили.
     :vartype message: Message
-    :ivar chat_id: ID чата исходного сообщения.
-    :vartype chat_id: int
+    :ivar chat_id: ID чата исходного сообщения, если сервер его прислал.
+    :vartype chat_id: int | None
     """
 
     type: Literal[LinkType.REPLY] = LinkType.REPLY
     message: Message
-    chat_id: int
+    chat_id: int | None = None
 
 
 class ForwardLink(MessageLink):
@@ -126,13 +126,13 @@ class ForwardLink(MessageLink):
 
     :ivar message: Исходное сообщение.
     :vartype message: Message
-    :ivar chat_id: ID исходного чата.
-    :vartype chat_id: int
+    :ivar chat_id: ID исходного чата, если сервер его прислал.
+    :vartype chat_id: int | None
     """
 
     type: Literal[LinkType.FORWARD] = LinkType.FORWARD
     message: Message
-    chat_id: int
+    chat_id: int | None = None
     chat_name: str | None = None
     chat_link: str | None = None
     chat_access_type: AccessType | None = None
