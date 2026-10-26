@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pymax.types.domain import (
     AudioAttachment,
+    LinkType,
     Message,
     PollAttachment,
     UnknownAttachment,
@@ -139,3 +140,48 @@ def test_message_elements_accept_missing_length_and_attribute_url() -> None:
     assert element.length is None
     assert element.attributes is not None
     assert element.attributes.url is None
+
+
+def test_message_link_reply_without_chat_id_is_accepted() -> None:
+    """Сервер может прислать reply без chatId в link — сообщение не должно
+    отбрасываться целиком из-за одного необязательного поля."""
+    payload = message_payload(1, 100)
+    payload["link"] = {
+        "type": "REPLY",
+        "message": message_payload(5, 100, text="quoted"),
+    }
+
+    message = Message.model_validate(payload)
+
+    assert message.link is not None
+    assert message.link.type == LinkType.REPLY
+    assert message.link.chat_id is None
+    assert message.link.message.text == "quoted"
+
+
+def test_message_link_forward_without_chat_id_is_accepted() -> None:
+    payload = message_payload(1, 100)
+    payload["link"] = {
+        "type": "FORWARD",
+        "message": message_payload(6, 100, text="fwd"),
+    }
+
+    message = Message.model_validate(payload)
+
+    assert message.link is not None
+    assert message.link.type == LinkType.FORWARD
+    assert message.link.chat_id is None
+
+
+def test_message_link_with_chat_id_unchanged() -> None:
+    payload = message_payload(1, 100)
+    payload["link"] = {
+        "type": "REPLY",
+        "message": message_payload(5, 100),
+        "chatId": 200,
+    }
+
+    message = Message.model_validate(payload)
+
+    assert message.link is not None
+    assert message.link.chat_id == 200
